@@ -1,16 +1,7 @@
-// ALLAN MUSIC BOT
-// Public music search using iTunes Search API
-
 const express = require("express");
-const path = require("path");
 
 const app = express();
-const PORT = 3000;
 
-// Serve website files
-app.use(express.static(path.join(__dirname, "public")));
-
-// Search music
 app.get("/api/search", async (req, res) => {
     const query = String(req.query.q || "").trim();
 
@@ -32,7 +23,7 @@ app.get("/api/search", async (req, res) => {
         const response = await fetch(url);
 
         if (!response.ok) {
-            throw new Error("Music search service failed.");
+            throw new Error("Music search failed.");
         }
 
         const data = await response.json();
@@ -44,26 +35,18 @@ app.get("/api/search", async (req, res) => {
             album: song.collectionName,
             artwork: song.artworkUrl100,
             preview: song.previewUrl || null,
-            duration: song.trackTimeMillis,
             link: song.trackViewUrl
         }));
 
         res.json(songs);
 
     } catch (error) {
-        console.error("Search error:", error);
+        console.error(error);
 
         res.status(500).json({
-            error: "Could not search music. Please try again."
+            error: "Music search is temporarily unavailable."
         });
     }
 });
 
-// Start server
-app.listen(PORT, "127.0.0.1", () => {
-    console.log("==============================");
-    console.log("🎵 ALLAN MUSIC BOT");
-    console.log("Server running on port " + PORT);
-    console.log("http://127.0.0.1:" + PORT);
-    console.log("==============================");
-});
+module.exports = app;
