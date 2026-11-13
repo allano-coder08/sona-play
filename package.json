@@ -1,7 +1,12 @@
 {
+  "name": "allan-music-bot",
+  "version": "1.0.0",
+  "description": "Allan Music Bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "dotenv": "^18.0.10",
-    "express": "^5.3.0",
-    "express-session": "^1.19.0"
+    "express": "^5.1.0"
   }
 }

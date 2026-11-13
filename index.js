@@ -1,11 +1,17 @@
 const express = require("express");
 
 const app = express();
-// Open the website homepage
+
+app.use(express.json());
+
+// Homepage
 app.get("/", (req, res) => {
-    res.redirect("/index.html");
+    res.sendFile(
+        require("path").join(__dirname, "public", "index.html")
+    );
 });
 
+// Music search API
 app.get("/api/search", async (req, res) => {
     const query = String(req.query.q || "").trim();
 
@@ -32,7 +38,7 @@ app.get("/api/search", async (req, res) => {
 
         const data = await response.json();
 
-        const songs = data.results.map(song => ({
+        const songs = (data.results || []).map(song => ({
             id: song.trackId,
             title: song.trackName,
             artist: song.artistName,
@@ -42,17 +48,16 @@ app.get("/api/search", async (req, res) => {
             link: song.trackViewUrl
         }));
 
-        res.json(songs);
+        return res.status(200).json(songs);
 
     } catch (error) {
-        console.error(error);
+        console.error("Music search error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             error: "Music search is temporarily unavailable."
         });
     }
 });
 
-module.exports = app;git add .
-git commit -m "Prepare app for Vercel"
-git pushy
+// Export application
+module.exports = app;
