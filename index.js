@@ -1,6 +1,10 @@
 const express = require("express");
 
 const app = express();
+// Open the website homepage
+app.get("/", (req, res) => {
+    res.redirect("/index.html");
+});
 
 app.get("/api/search", async (req, res) => {
     const query = String(req.query.q || "").trim();
@@ -49,4 +53,6 @@ app.get("/api/search", async (req, res) => {
     }
 });
 
-module.exports = app;
+module.exports = app;git add .
+git commit -m "Prepare app for Vercel"
+git pushy
