@@ -1,0 +1,313 @@
+/* GENERAL SETTINGS */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #000;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+/* MAIN APP */
+.app {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: 1fr 90px;
+    height: 100vh;
+    gap: 8px;
+    padding: 8px;
+}
+
+/* SIDEBAR */
+.sidebar {
+    background: #121212;
+    border-radius: 10px;
+    padding: 25px 15px;
+}
+
+.sidebar h2 {
+    color: #1ed760;
+    margin-bottom: 35px;
+}
+
+.sidebar nav {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.sidebar nav a {
+    color: #b3b3b3;
+    text-decoration: none;
+    font-size: 16px;
+    transition: 0.3s;
+}
+
+.sidebar nav a:hover,
+.sidebar nav a.active {
+    color: white;
+}
+
+.playlists {
+    margin-top: 40px;
+}
+
+.playlists h3 {
+    margin-bottom: 20px;
+}
+
+.playlists p {
+    color: #b3b3b3;
+    margin-bottom: 18px;
+    cursor: pointer;
+}
+
+/* MAIN CONTENT */
+.main-content {
+    background: linear-gradient(#252525, #121212 50%);
+    border-radius: 10px;
+    padding: 30px;
+    overflow-y: auto;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+header h1 {
+    font-size: 28px;
+}
+
+button {
+    background: #1ed760;
+    color: black;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 25px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+button:hover {
+    background: #1fdf64;
+    transform: scale(1.04);
+}
+
+/* SEARCH SECTION */
+.search-section {
+    display: flex;
+    gap: 10px;
+    margin-top: 35px;
+    max-width: 600px;
+}
+
+.search-section input {
+    flex: 1;
+    padding: 15px;
+    border-radius: 25px;
+    border: none;
+    outline: none;
+    background: #242424;
+    color: white;
+    font-size: 15px;
+    min-width: 0;
+}
+
+.search-section input:focus {
+    outline: 2px solid #1ed760;
+}
+
+/* MUSIC SECTION */
+.music-section {
+    margin-top: 45px;
+}
+
+.music-section h2 {
+    margin-bottom: 25px;
+}
+
+#results {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 20px;
+}
+
+#results p {
+    color: #b3b3b3;
+}
+
+/* MUSIC PLAYER */
+.player {
+    grid-column: 1 / -1;
+    background: #181818;
+    border-top: 1px solid #333;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 25px;
+    gap: 15px;
+}
+
+.song-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.album-art {
+    background: #282828;
+    width: 55px;
+    height: 55px;
+    display: grid;
+    place-items: center;
+    font-size: 25px;
+    border-radius: 5px;
+}
+
+.song-info h4 {
+    font-size: 14px;
+}
+
+.song-info p {
+    color: #b3b3b3;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.player-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.player-controls button {
+    background: transparent;
+    color: white;
+    font-size: 20px;
+    padding: 8px;
+}
+
+.player-controls #playBtn {
+    background: white;
+    color: black;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+}
+
+.volume {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.volume input {
+    accent-color: #1ed760;
+    width: 90px;
+}
+
+/* MOBILE RESPONSIVENESS */
+@media (max-width: 700px) {
+
+    .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr 85px;
+        height: 100dvh;
+    }
+
+    .sidebar {
+        padding: 15px;
+    }
+
+    .sidebar h2 {
+        margin-bottom: 15px;
+    }
+
+    .sidebar nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .playlists {
+        display: none;
+    }
+
+    .main-content {
+        padding: 20px 15px;
+    }
+
+    header h1 {
+        font-size: 21px;
+    }
+
+    .player {
+        padding: 10px;
+    }
+
+    .volume {
+        display: none;
+    }
+
+    .player-controls {
+        gap: 5px;
+    }
+
+    .song-info {
+        max-width: 45%;
+    }
+/* MUSIC SEARCH RESULT CARDS */
+
+.track-card {
+    background: #181818;
+    padding: 15px;
+    border-radius: 10px;
+    transition: 0.3s;
+    overflow: hidden;
+}
+
+.track-card:hover {
+    background: #282828;
+}
+
+.track-card img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.track-card h3 {
+    font-size: 15px;
+    margin-bottom: 8px;
+}
+
+.track-card p {
+    color: #b3b3b3;
+    font-size: 13px;
+    margin-bottom: 15px;
+}
+
+.track-card button {
+    width: 100%;
+    font-size: 12px;
+}
+
+.track-card button:disabled {
+    background: #444;
+    color: #aaa;
+    cursor: not-allowed;
+    transform: none;
+}
+}
