@@ -5,78 +5,140 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Allan Music Bot</title>
     <link rel="stylesheet" href="style.css">
+
+    <style>
+        .developer-section {
+            margin-top: 40px;
+            padding: 25px;
+            background: #181818;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+        }
+
+        .developer-section img {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #1db954;
+        }
+
+        .developer-section h2 {
+            margin-top: 15px;
+        }
+
+        .developer-section p {
+            color: #bbb;
+            margin: 8px;
+        }
+
+        .developer-section .role {
+            color: #1db954;
+            font-weight: bold;
+        }
+    </style>
 </head>
+
 <body>
 
-    <div class="app">
+<div class="app">
 
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <h2>🎵 Allan Music</h2>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <h2>🎵 Allan Music</h2>
 
-            <nav>
-                <a href="#" class="active">🏠 Home</a>
-                <a href="#">🔍 Search</a>
-                <a href="#">📚 Your Library</a>
-            </nav>
+        <nav>
+            <a href="#" class="active">🏠 Home</a>
+            <a href="#">🔍 Search</a>
+            <a href="#">📚 Your Library</a>
+        </nav>
 
-            <div class="playlists">
-                <h3>Your Playlists</h3>
-                <p>+ Create Playlist</p>
-                <p>❤️ Liked Songs</p>
+        <div class="playlists">
+            <h3>Your Playlists</h3>
+            <p>+ Create Playlist</p>
+            <p>❤️ Liked Songs</p>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <header>
+            <h1>Good Music, Good Mood 🎧</h1>
+            <button id="loginBtn">Connect Spotify</button>
+        </header>
+
+        <section class="search-section">
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="Search songs, artists..."
+            >
+            <button id="searchBtn">Search</button>
+        </section>
+
+        <section class="music-section">
+            <h2>Search Results</h2>
+            <div id="results">
+                <p>Search for your favourite music.</p>
             </div>
-        </aside>
+        </section>
 
-        <!-- Main Content -->
-        <main class="main-content">
+        <!-- About Developer -->
+        <section class="developer-section">
+            <img src="developer.jpeg" alt="Allan Kiplangat - Developer">
 
-            <header>
-                <h1>Good Music, Good Mood 🎧</h1>
-                <button id="loginBtn">Connect Spotify</button>
-            </header>
+            <h2>👨‍💻 About the Developer</h2>
 
-            <section class="search-section">
-                <input
-                    type="text"
-                    id="searchInput"
-                    placeholder="Search songs, artists..."
-                >
-                <button id="searchBtn">Search</button>
-            </section>
+            <h3>Allan Kiplangat</h3>
 
-            <section class="music-section">
-                <h2>Search Results</h2>
-                <div id="results">
-                    <p>Search for your favourite music.</p>
-                </div>
-            </section>
+            <p class="role">
+                Computer Science Student
+            </p>
 
-        </main>
+            <p>Moi University</p>
 
-        <!-- Music Player -->
-        <footer class="player">
-            <div class="song-info">
-                <div class="album-art">🎵</div>
-                <div>
-                    <h4 id="songTitle">No song selected</h4>
-                    <p id="artistName">Allan Music Bot</p>
-                </div>
+            <p>
+                Creator & Developer of Allan Music Bot 🎵
+            </p>
+
+            <p>
+                Passionate about technology, programming
+                and building amazing digital experiences.
+            </p>
+        </section>
+
+    </main>
+
+    <!-- Music Player -->
+    <footer class="player">
+
+        <div class="song-info">
+            <div class="album-art">🎵</div>
+
+            <div>
+                <h4 id="songTitle">No song selected</h4>
+                <p id="artistName">Allan Music Bot</p>
             </div>
+        </div>
 
-            <div class="player-controls">
-                <button id="previousBtn">⏮</button>
-                <button id="playBtn">▶</button>
-                <button id="nextBtn">⏭</button>
-            </div>
+        <div class="player-controls">
+            <button id="previousBtn">⏮</button>
+            <button id="playBtn">▶</button>
+            <button id="nextBtn">⏭</button>
+        </div>
 
-            <div class="volume">
-                <span>🔊</span>
-                <input type="range" min="0" max="100" value="50">
-            </div>
-        </footer>
+        <div class="volume">
+            <span>🔊</span>
+            <input type="range" min="0" max="100" value="50">
+        </div>
 
-    </div>
+    </footer>
 
-    <script src="script.js"></script>
+</div>
+
+<script src="script.js"></script>
+
 </body>
 </html>
