@@ -1,4 +1,3 @@
-```javascript
 /* ==========================================
    ALLAN MUSIC BOT
    MUSIC SEARCH AND PLAYER
@@ -9,9 +8,7 @@
 const searchInput = document.getElementById("searchInput");
 const searchBtn = document.getElementById("searchBtn");
 const results = document.getElementById("results");
-
 const resultsSection = document.getElementById("search-results-section");
-
 const loginBtn = document.getElementById("loginBtn");
 
 const playBtn = document.getElementById("playBtn");
@@ -21,665 +18,442 @@ const nextBtn = document.getElementById("nextBtn");
 const songTitle = document.getElementById("songTitle");
 const artistName = document.getElementById("artistName");
 
-const volumeInput =
-    document.getElementById("volumeControl") ||
-    document.querySelector(".volume input");
+const volumeInput = document.getElementById("volumeControl");
+const mainContent = document.getElementById("mainContent");
+
+const FALLBACK_ART = "https://placehold.co/300x300/20243a/ffffff?text=Music";
 
 
 // 2. AUDIO SETTINGS
 
 const audio = new Audio();
-
 audio.volume = 0.5;
 
 let songs = [];
 let currentIndex = -1;
-let isPlaying = false;
 let searchController = null;
 
 
 // 3. HELPER FUNCTIONS
 
 function showMessage(message) {
-
     if (!results) return;
 
     results.replaceChildren();
 
     const paragraph = document.createElement("p");
-
     paragraph.className = "search-message";
     paragraph.textContent = message;
 
     results.appendChild(paragraph);
 }
 
-
 function showSearchSection() {
+    const target = resultsSection || results;
 
-    if (resultsSection) {
-
-        resultsSection.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-
-    } else if (results) {
-
-        results.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-
+    if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 }
 
-
 function updatePlayButton() {
-
     if (!playBtn) return;
 
-    playBtn.innerHTML = isPlaying
-        ? '<i class="fas fa-pause"></i>'
-        : '<i class="fas fa-play"></i>';
+    const playing = !audio.paused && !audio.ended;
 
+    playBtn.innerHTML = playing
+        ? '<i class="fas fa-pause" aria-hidden="true"></i>'
+        : '<i class="fas fa-play" aria-hidden="true"></i>';
+
+    playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+}
+
+function highlightCurrentTrack() {
+    document.querySelectorAll(".track-card").forEach(function (card, i) {
+        card.classList.toggle("playing", i === currentIndex);
+    });
+}
+
+// Finds the next song with a preview, moving forward (1) or backward (-1).
+function findPlayable(start, step) {
+    if (!songs.length) return -1;
+
+    let index = start;
+
+    for (let attempts = 0; attempts < songs.length; attempts++) {
+        index = (index + step + songs.length) % songs.length;
+
+        if (songs[index].preview) return index;
+    }
+
+    return -1;
 }
 
 
-// 4. SEARCH BUTTON EVENTS
+// 4. SEARCH EVENTS
+// NOTE: the click handler is wrapped so the click event is NOT passed in as
+// the "query" argument (that was crashing with "query.trim is not a function").
 
 if (searchBtn) {
-
-    searchBtn.addEventListener("click", searchMusic);
-
+    searchBtn.addEventListener("click", function () {
+        searchMusic();
+    });
 }
 
 if (searchInput) {
-
-    searchInput.addEventListener("keydown", function(event) {
-
+    searchInput.addEventListener("keydown", function (event) {
         if (event.key === "Enter") {
-
             event.preventDefault();
-
             searchMusic();
-
         }
-
     });
-
 }
 
 
-// 5. SEARCH MUSIC FUNCTION
+// 5. FETCH SONGS
+// Tries your own backend first (/api/search). If it is not available
+// (for example on static hosting) it falls back to the public iTunes
+// Search API, which needs no key and returns 30-second previews.
 
-async function searchMusic(query = null) {
+function normalizeSong(item) {
+    return {
+        title: item.title || item.trackName || "",
+        artist: item.artist || item.artistName || "",
+        artwork: item.artwork || item.artworkUrl100 || "",
+        preview: item.preview || item.previewUrl || ""
+    };
+}
 
-    if (!searchInput || !results) return;
+async function fetchFromBackend(query, signal) {
+    const response = await fetch(
+        "/api/search?q=" + encodeURIComponent(query),
+        { headers: { Accept: "application/json" }, signal }
+    );
 
-    const searchQuery = (
-        query !== null ? query : searchInput.value
-    ).trim();
+    const type = response.headers.get("content-type") || "";
 
-    if (!searchQuery) {
-
-        showMessage("Please enter a song name or artist.");
-
-        searchInput.focus();
-
-        return;
-
+    if (!response.ok || !type.includes("application/json")) {
+        throw new Error("Backend search unavailable (" + response.status + ").");
     }
 
-    // Put the selected search term in the input
+    const data = await response.json();
+
+    if (!Array.isArray(data)) {
+        throw new Error("Unexpected response from music server.");
+    }
+
+    return data.map(normalizeSong);
+}
+
+async function fetchFromItunes(query, signal) {
+    const url =
+        "https://itunes.apple.com/search?media=music&entity=song&limit=24&term=" +
+        encodeURIComponent(query);
+
+    const response = await fetch(url, { signal });
+
+    if (!response.ok) {
+        throw new Error("Search failed (" + response.status + ").");
+    }
+
+    const data = await response.json();
+
+    return (data.results || []).map(function (item) {
+        const song = normalizeSong(item);
+        // Request a larger cover image
+        song.artwork = song.artwork.replace("100x100", "300x300");
+        return song;
+    });
+}
+
+async function searchMusic(query) {
+    if (!searchInput || !results) return;
+
+    const raw = typeof query === "string" ? query : searchInput.value;
+    const searchQuery = raw.trim();
+
+    if (!searchQuery) {
+        showMessage("Please enter a song name or artist.");
+        searchInput.focus();
+        return;
+    }
 
     searchInput.value = searchQuery;
 
-    // Cancel previous search
-
-    if (searchController) {
-
-        searchController.abort();
-
-    }
+    if (searchController) searchController.abort();
 
     searchController = new AbortController();
-
     const currentController = searchController;
 
     if (searchBtn) {
-
         searchBtn.disabled = true;
         searchBtn.textContent = "Searching...";
-
     }
 
     showMessage("Searching for your favourite music... 🎵");
-
-    // Show results section near the top of the page
-
     showSearchSection();
 
     try {
+        let found;
 
-        const response = await fetch(
-            "/api/search?q=" + encodeURIComponent(searchQuery),
-            {
-                method: "GET",
+        try {
+            found = await fetchFromBackend(searchQuery, currentController.signal);
+        } catch (backendError) {
+            if (backendError.name === "AbortError") throw backendError;
 
-                headers: {
-                    "Accept": "application/json"
-                },
+            console.warn("Backend search failed, using iTunes:", backendError.message);
 
-                signal: currentController.signal
-            }
-        );
-
-        if (!response.ok) {
-
-            let errorMessage = `Search failed (${response.status}).`;
-
-            try {
-
-                const errorData = await response.json();
-
-                if (errorData.error) {
-
-                    errorMessage = errorData.error;
-
-                }
-
-            } catch (error) {
-
-                console.warn("Could not read API error response.");
-
-            }
-
-            throw new Error(errorMessage);
-
+            found = await fetchFromItunes(searchQuery, currentController.signal);
         }
 
-        const data = await response.json();
-
-        if (!Array.isArray(data)) {
-
-            throw new Error(
-                "Unexpected response from music server. Please check the API."
-            );
-
-        }
-
-        // Ignore outdated search results
-
+        // Ignore outdated results
         if (currentController !== searchController) return;
 
-        songs = data;
-
+        songs = found;
         currentIndex = -1;
 
         renderSongs();
-
-    }
-
-    catch (error) {
-
+    } catch (error) {
         if (error.name === "AbortError") return;
 
         console.error("Music search error:", error);
 
-        showMessage(
-            "Unable to search music. " +
-            error.message +
-            " Please try again."
-        );
-
-    }
-
-    finally {
-
-        if (currentController === searchController) {
-
-            if (searchBtn) {
-
-                searchBtn.disabled = false;
-                searchBtn.textContent = "Search";
-
-            }
-
+        showMessage("Unable to search music. " + error.message + " Please try again.");
+    } finally {
+        if (currentController === searchController && searchBtn) {
+            searchBtn.disabled = false;
+            searchBtn.textContent = "Search";
         }
-
     }
-
 }
 
 
-// 6. FIND YOUR VIBE BUTTONS
+// 6. VIBE, FEATURED AND PLAYLIST BUTTONS
+// Every element with data-search (or the old data-vibe) starts a search.
 
-// Works with buttons containing:
-// data-vibe="afrobeats"
-// data-vibe="chill hits"
-// data-vibe="party music"
-// data-vibe="love songs"
+document.querySelectorAll("[data-search], [data-vibe]").forEach(function (element) {
+    element.addEventListener("click", function (event) {
+        event.preventDefault();
 
-document.querySelectorAll("[data-vibe]").forEach(button => {
+        const query = this.dataset.search || this.dataset.vibe;
 
-    button.addEventListener("click", function() {
-
-        const vibe = this.dataset.vibe;
-
-        if (vibe) {
-
-            searchMusic(vibe);
-
-        }
-
+        if (query) searchMusic(query);
     });
+});
 
+// "Search" and "Discover More" links: scroll up and focus the search box.
+document.querySelectorAll("[data-focus-search]").forEach(function (link) {
+    link.addEventListener("click", function (event) {
+        event.preventDefault();
+        showSearchSection();
+
+        if (searchInput) searchInput.focus({ preventScroll: true });
+    });
 });
 
 
-// 7. HANDPICKED AND PLAYLIST BUTTONS
-
-// Works with:
-// data-search="popular new songs"
-// data-search="afrobeats"
-// data-search="chill music"
-
-document.querySelectorAll("[data-search]").forEach(button => {
-
-    button.addEventListener("click", function() {
-
-        const query = this.dataset.search;
-
-        if (query) {
-
-            searchMusic(query);
-
-        }
-
-    });
-
-});
-
-
-// 8. DISPLAY SEARCH RESULTS
+// 7. DISPLAY SEARCH RESULTS
 
 function renderSongs() {
-
     if (!results) return;
 
     results.replaceChildren();
 
     if (!songs.length) {
-
         showMessage("No songs found. Try another search.");
-
         return;
-
     }
 
-    songs.forEach((song, index) => {
-
+    songs.forEach(function (song, index) {
         const card = document.createElement("div");
-
         card.className = "track-card";
 
-
-        // Album artwork
-
         const image = document.createElement("img");
-
-        image.src = song.artwork ||
-            "https://placehold.co/300x300/20243a/ffffff?text=Music";
-
-        image.alt = `${song.title || "Song"} artwork`;
-
+        image.src = song.artwork || FALLBACK_ART;
+        image.alt = (song.title || "Song") + " artwork";
         image.loading = "lazy";
-
-        image.onerror = function() {
-
+        image.onerror = function () {
             this.onerror = null;
-
-            this.src =
-                "https://placehold.co/300x300/20243a/ffffff?text=Music";
-
+            this.src = FALLBACK_ART;
         };
 
-
-        // Song title
-
         const title = document.createElement("h3");
-
         title.textContent = song.title || "Unknown Song";
 
-
-        // Artist
-
         const artist = document.createElement("p");
-
         artist.textContent = song.artist || "Unknown Artist";
 
-
-        // Play preview button
-
         const button = document.createElement("button");
-
+        button.type = "button";
         button.className = "track-play-btn";
-
-        button.textContent = song.preview
-            ? "▶ Play Preview"
-            : "Preview unavailable";
-
+        button.textContent = song.preview ? "▶ Play Preview" : "Preview unavailable";
         button.disabled = !song.preview;
 
-        button.addEventListener("click", function() {
-
+        button.addEventListener("click", function () {
             playSong(index);
-
         });
 
-
-        card.append(
-            image,
-            title,
-            artist,
-            button
-        );
-
+        card.append(image, title, artist, button);
         results.appendChild(card);
-
     });
-
 }
 
 
-// 9. PLAY A SONG
+// 8. PLAY A SONG
 
 async function playSong(index) {
-
     const song = songs[index];
 
     if (!song || !song.preview) return;
 
     currentIndex = index;
 
-    audio.pause();
-
     audio.src = song.preview;
 
-    audio.load();
+    if (songTitle) songTitle.textContent = song.title || "Unknown Song";
+    if (artistName) artistName.textContent = song.artist || "Unknown Artist";
 
-    if (songTitle) {
-
-        songTitle.textContent =
-            song.title || "Unknown Song";
-
-    }
-
-    if (artistName) {
-
-        artistName.textContent =
-            song.artist || "Unknown Artist";
-
-    }
+    highlightCurrentTrack();
 
     try {
-
         await audio.play();
-
-        isPlaying = true;
-
-        updatePlayButton();
-
+    } catch (error) {
+        // AbortError just means another song was selected quickly - not a real failure.
+        if (error.name !== "AbortError") {
+            console.error("Playback error:", error);
+        }
     }
 
-    catch (error) {
-
-        console.error("Playback error:", error);
-
-        isPlaying = false;
-
-        updatePlayButton();
-
-    }
-
+    updatePlayButton();
 }
 
 
-// 10. PLAY AND PAUSE
+// 9. PLAY / PAUSE
 
 if (playBtn) {
-
-    playBtn.addEventListener("click", async function() {
-
+    playBtn.addEventListener("click", async function () {
         if (!audio.src) {
+            const first = songs.findIndex(function (song) {
+                return song.preview;
+            });
 
-            if (songs.length > 0) {
-
-                const firstPlayableSong = songs.findIndex(
-                    song => song.preview
-                );
-
-                if (firstPlayableSong !== -1) {
-
-                    await playSong(firstPlayableSong);
-
-                }
-
-            }
+            if (first !== -1) await playSong(first);
 
             return;
-
         }
 
         if (audio.paused) {
-
             try {
-
                 await audio.play();
-
-                isPlaying = true;
-
+            } catch (error) {
+                if (error.name !== "AbortError") {
+                    console.error("Playback error:", error);
+                }
             }
-
-            catch (error) {
-
-                console.error("Playback error:", error);
-
-                isPlaying = false;
-
-            }
-
         } else {
-
             audio.pause();
-
-            isPlaying = false;
-
         }
 
         updatePlayButton();
-
     });
-
 }
 
 
-// 11. NEXT SONG
+// 10. NEXT / PREVIOUS / AUTO-ADVANCE
 
-if (nextBtn) {
+function playNext() {
+    const next = findPlayable(currentIndex, 1);
 
-    nextBtn.addEventListener("click", function() {
-
-        if (!songs.length) return;
-
-        let next = currentIndex + 1;
-
-        if (next >= songs.length) {
-
-            next = 0;
-
-        }
-
-        // Skip songs without previews
-
-        let attempts = 0;
-
-        while (!songs[next].preview && attempts < songs.length) {
-
-            next = (next + 1) % songs.length;
-
-            attempts++;
-
-        }
-
-        if (songs[next].preview) {
-
-            playSong(next);
-
-        }
-
-    });
-
+    if (next !== -1) playSong(next);
 }
 
+function playPrevious() {
+    // Start of a song? restart it. Otherwise go back one.
+    if (audio.currentTime > 3) {
+        audio.currentTime = 0;
+        return;
+    }
 
-// 12. PREVIOUS SONG
+    const previous = findPlayable(currentIndex === -1 ? 0 : currentIndex, -1);
 
-if (previousBtn) {
-
-    previousBtn.addEventListener("click", function() {
-
-        if (!songs.length) return;
-
-        let previous = currentIndex - 1;
-
-        if (previous < 0) {
-
-            previous = songs.length - 1;
-
-        }
-
-        // Skip songs without previews
-
-        let attempts = 0;
-
-        while (!songs[previous].preview && attempts < songs.length) {
-
-            previous = (previous - 1 + songs.length) % songs.length;
-
-            attempts++;
-
-        }
-
-        if (songs[previous].preview) {
-
-            playSong(previous);
-
-        }
-
-    });
-
+    if (previous !== -1) playSong(previous);
 }
 
+if (nextBtn) nextBtn.addEventListener("click", playNext);
+if (previousBtn) previousBtn.addEventListener("click", playPrevious);
 
-// 13. AUTOMATICALLY PLAY NEXT SONG
-
-audio.addEventListener("ended", function() {
-
-    if (!songs.length) return;
-
-    let next = currentIndex + 1;
-
-    if (next >= songs.length) {
-
-        next = 0;
-
-    }
-
-    let attempts = 0;
-
-    while (!songs[next].preview && attempts < songs.length) {
-
-        next = (next + 1) % songs.length;
-
-        attempts++;
-
-    }
-
-    if (songs[next].preview) {
-
-        playSong(next);
-
-    }
-
-});
+audio.addEventListener("ended", playNext);
 
 
-// 14. AUDIO EVENTS
+// 11. AUDIO EVENTS (keep the button in sync with the real audio state)
 
-audio.addEventListener("play", function() {
+audio.addEventListener("play", updatePlayButton);
+audio.addEventListener("pause", updatePlayButton);
 
-    isPlaying = true;
-
+audio.addEventListener("error", function () {
     updatePlayButton();
-
-});
-
-
-audio.addEventListener("pause", function() {
-
-    isPlaying = false;
-
-    updatePlayButton();
-
-});
-
-
-audio.addEventListener("error", function() {
-
-    isPlaying = false;
-
-    updatePlayButton();
-
     console.error("The audio preview could not be loaded.");
 
+    if (songTitle) songTitle.textContent = "Preview could not be loaded";
 });
 
 
-// 15. VOLUME CONTROL
+// 12. VOLUME
 
 if (volumeInput) {
-
-    // Set the slider to match the initial audio volume
-
     volumeInput.value = audio.volume * 100;
 
-    volumeInput.addEventListener("input", function() {
-
+    volumeInput.addEventListener("input", function () {
         audio.volume = Number(this.value) / 100;
-
     });
-
 }
 
 
-// 16. SPOTIFY CONNECTION
+// 13. SPOTIFY BUTTON (placeholder)
 
 if (loginBtn) {
-
-    loginBtn.addEventListener("click", function() {
-
+    loginBtn.addEventListener("click", function () {
         alert("Spotify integration will be added separately.");
-
     });
-
 }
 
 
-// 17. INITIALIZE APPLICATION
+// 14. SIDEBAR / MOBILE NAV: highlight the section you are viewing
+
+const navLinks = document.querySelectorAll(".nav-link[href^='#']");
+
+function setActiveNav(id) {
+    navLinks.forEach(function (link) {
+        link.classList.toggle("active", link.getAttribute("href") === "#" + id);
+    });
+}
+
+navLinks.forEach(function (link) {
+    link.addEventListener("click", function () {
+        const id = link.getAttribute("href").slice(1);
+
+        if (id) setActiveNav(id);
+    });
+});
+
+if (mainContent && "IntersectionObserver" in window) {
+    const watched = ["home-section", "playlists-section", "featured-section",
+                     "trending-section", "library-section"];
+
+    const observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+            if (entry.isIntersecting) setActiveNav(entry.target.id);
+        });
+    }, { root: mainContent, rootMargin: "-20% 0px -65% 0px" });
+
+    watched.forEach(function (id) {
+        const section = document.getElementById(id);
+
+        if (section) observer.observe(section);
+    });
+}
+
+
+// 15. INITIALIZE
 
 updatePlayButton();
-
-console.log("🎵 Allan Music Bot initialized successfully!");
-```

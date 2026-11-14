@@ -1,4 +1,3 @@
-```css
 /* ============================================
    ALLAN MUSIC — MULTICOLOUR MUSIC EXPERIENCE
    Modern UI | Responsive | Premium Dashboard
@@ -8,7 +7,6 @@
 
 :root {
     --background: #090d19;
-    --background-light: #10172a;
     --sidebar: #0d1322;
 
     --card: #151e32;
@@ -16,9 +14,7 @@
 
     --purple: #9b72ff;
     --pink: #f05bb5;
-    --blue: #38bdf8;
     --cyan: #22d3ee;
-    --orange: #ffad5c;
     --yellow: #ffd166;
 
     --text: #f8fafc;
@@ -30,18 +26,6 @@
         120deg,
         #8b5cf6,
         #ec4899
-    );
-
-    --gradient-blue: linear-gradient(
-        120deg,
-        #2563eb,
-        #06b6d4
-    );
-
-    --gradient-orange: linear-gradient(
-        120deg,
-        #f97316,
-        #facc15
     );
 
     --shadow: 0 15px 40px rgba(0,0,0,0.25);
@@ -56,10 +40,6 @@
     box-sizing: border-box;
 }
 
-html {
-    scroll-behavior: smooth;
-    scroll-padding-top: 25px;
-}
 
 body {
     background: var(--background);
@@ -237,7 +217,9 @@ a {
     margin-bottom: 15px;
 }
 
-.premium-card h3 {
+.premium-card .premium-title {
+    color: white;
+    font-weight: 700;
     font-size: 15px;
     margin-bottom: 10px;
 }
@@ -319,6 +301,16 @@ a {
 
     scrollbar-width: thin;
     scrollbar-color: #4d426c transparent;
+
+    scroll-behavior: smooth;
+    scroll-padding-top: 25px;
+}
+
+
+/* MOBILE NAV (hidden on desktop) */
+
+.mobile-nav {
+    display: none;
 }
 
 
@@ -354,6 +346,7 @@ a {
     padding: 7px 9px 7px 18px;
 
     max-width: 650px;
+    min-width: 0;
     flex: 1;
 
     transition: 0.3s;
@@ -414,6 +407,7 @@ a {
 .header-actions {
     display: flex;
     align-items: center;
+    flex-shrink: 0;
     gap: 16px;
 }
 
@@ -476,7 +470,7 @@ a {
 
 /* 7. SEARCH RESULTS */
 
-.search-results-section {
+.music-section.search-results-section {
     margin-top: 0;
     margin-bottom: 32px;
 
@@ -613,6 +607,15 @@ a {
     filter: brightness(1.2);
 }
 
+.track-card.playing {
+    border-color: var(--pink);
+    background: var(--card-hover);
+}
+
+.track-card.playing button {
+    background: linear-gradient(120deg, #2563eb, #06b6d4);
+}
+
 .track-card button:disabled {
     background: #394258;
     color: #aab1c0;
@@ -667,6 +670,9 @@ a {
 }
 
 .hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     color: #e6d5ff;
 
     font-size: 10px;
@@ -920,6 +926,7 @@ a {
 }
 
 .playlist-card {
+    display: block;
     background: var(--card);
 
     padding: 12px;
@@ -944,6 +951,7 @@ a {
 }
 
 .playlist-cover {
+    display: grid;
     aspect-ratio: 1;
 
     border-radius: 11px;
@@ -972,12 +980,15 @@ a {
     background: linear-gradient(135deg, #e11d48, #fb7185);
 }
 
-.playlist-card h3 {
+.playlist-title {
+    display: block;
     font-size: 13px;
+    font-weight: 700;
     margin-bottom: 6px;
 }
 
-.playlist-card p {
+.playlist-desc {
+    display: block;
     font-size: 11px;
     color: var(--muted);
 }
@@ -1068,7 +1079,7 @@ a {
 /* 14. FOOTER */
 
 .site-footer {
-    padding: 30px 10px 100px;
+    padding: 30px 10px;
 
     text-align: center;
 
@@ -1217,7 +1228,7 @@ a {
 
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
+.volume input:focus-visible {
     outline: 2px solid var(--cyan);
     outline-offset: 3px;
 }
@@ -1284,6 +1295,28 @@ input:focus-visible {
     .top-header {
         flex-wrap: wrap;
         gap: 12px;
+    }
+
+    .mobile-nav {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        margin: -8px 0 20px;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+    }
+
+    .mobile-nav .nav-link {
+        flex-shrink: 0;
+        padding: 8px 14px;
+        font-size: 12px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+    }
+
+    .mobile-nav .nav-link:hover,
+    .mobile-nav .nav-link.active {
+        transform: none;
     }
 
     .mobile-logo {
@@ -1472,10 +1505,6 @@ input:focus-visible {
         display: none;
     }
 
-    .site-footer {
-        padding-bottom: 30px;
-    }
-
 }
 
 
@@ -1491,8 +1520,11 @@ input:focus-visible {
         font-size: 24px;
     }
 
+    .spotify-btn span {
+        display: none;
+    }
+
     .spotify-btn {
-        font-size: 0;
         padding: 10px;
     }
 
@@ -1525,4 +1557,3 @@ input:focus-visible {
     }
 
 }
-```
