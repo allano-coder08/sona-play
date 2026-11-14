@@ -8,6 +8,11 @@
 // Vercel domain in Google Cloud (Credentials > your key > Website restrictions).
 const YOUTUBE_API_KEY = "AIzaSyAmA8taIf1zkXycMFwbGAXFjzbfiolrnkY";
 
+// Set to true to move the YouTube video off-screen (audio only).
+// Note: YouTube's developer policies expect the player to stay visible,
+// so false (visible mini-player) is the safest choice.
+const HIDE_PLAYER = false;
+
 
 // 1. GET HTML ELEMENTS
 
@@ -230,11 +235,35 @@ async function fetchFromYouTube(query, signal) {
     const response = await fetch(url, { signal });
 
     if (!response.ok) {
-        if (response.status === 403) {
-            throw new Error("YouTube quota reached or key not allowed for this site (403).");
+        // Ask Google for the exact reason so the message is useful.
+        let reason = "";
+        let detail = "";
+
+        try {
+            const body = await response.json();
+            const first = body.error && body.error.errors && body.error.errors[0];
+
+            reason = (first && first.reason) || "";
+            detail = (body.error && body.error.message) || "";
+        } catch (parseError) {
+            // ignore: body was not JSON
         }
 
-        throw new Error("Search failed (" + response.status + ").");
+        console.error("YouTube API error:", response.status, reason, detail);
+
+        const fixes = {
+            quotaExceeded: "Daily YouTube quota used up. It resets at midnight Pacific time.",
+            accessNotConfigured: "YouTube Data API v3 is not enabled in the Google Cloud project that owns this key.",
+            ipRefererBlocked: "This key's website restriction does not include this site's address. Add it under Credentials > Website restrictions.",
+            keyInvalid: "The API key is invalid. Check it was copied correctly.",
+            API_KEY_HTTP_REFERRER_BLOCKED: "This key's website restriction does not include this site's address. Add it under Credentials > Website restrictions.",
+            API_KEY_SERVICE_BLOCKED: "This key is not allowed to use the YouTube Data API v3. Fix it under Credentials > API restrictions.",
+            SERVICE_DISABLED: "YouTube Data API v3 is not enabled in the Google Cloud project that owns this key."
+        };
+
+        const friendly = fixes[reason] || detail || ("Search failed (" + response.status + ").");
+
+        throw new Error(friendly);
     }
 
     const data = await response.json();
