@@ -1,7 +1,13 @@
 /* ==========================================
    ALLAN MUSIC BOT
-   MUSIC SEARCH AND PLAYER
+   MUSIC SEARCH AND PLAYER (full songs via YouTube)
 ========================================== */
+
+// 0. YOUTUBE API KEY
+// Paste your YouTube Data API v3 key here, and restrict it to your
+// Vercel domain in Google Cloud (Credentials > your key > Website restrictions).
+const YOUTUBE_API_KEY = "AIzaSyAmA8taIf1zkXycMFwbGAXFjzbfiolrnkY";
+
 
 // 1. GET HTML ELEMENTS
 
@@ -24,17 +30,102 @@ const mainContent = document.getElementById("mainContent");
 const FALLBACK_ART = "https://placehold.co/300x300/20243a/ffffff?text=Music";
 
 
-// 2. AUDIO SETTINGS
-
-const audio = new Audio();
-audio.volume = 0.5;
+// 2. PLAYER STATE
 
 let songs = [];
 let currentIndex = -1;
 let searchController = null;
 
+let ytPlayer = null;
+let ytReady = false;
+let pendingIndex = -1;   // song clicked before the player finished loading
+let isPlaying = false;
+let currentVolume = 50;
 
-// 3. HELPER FUNCTIONS
+
+// 3. YOUTUBE IFRAME PLAYER
+// Uses <div id="player"> if you add one to index.html. Otherwise a small
+// player is created in the bottom-right corner of the page.
+
+function ensurePlayerHolder() {
+    let holder = document.getElementById("player");
+
+    if (!holder) {
+        holder = document.createElement("div");
+        holder.id = "player";
+        holder.style.cssText =
+            "position:fixed;right:12px;bottom:12px;width:240px;height:135px;" +
+            "z-index:9999;border-radius:8px;overflow:hidden;" +
+            "box-shadow:0 4px 16px rgba(0,0,0,0.4);";
+        document.body.appendChild(holder);
+    }
+
+    return holder;
+}
+
+function loadYouTubeApi() {
+    ensurePlayerHolder();
+
+    if (window.YT && window.YT.Player) {
+        onYouTubeIframeAPIReady();
+        return;
+    }
+
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+}
+
+// YouTube calls this function by name once its script has loaded.
+window.onYouTubeIframeAPIReady = function () {
+    ytPlayer = new YT.Player("player", {
+        width: "240",
+        height: "135",
+        playerVars: { playsinline: 1, rel: 0, controls: 1 },
+        events: {
+            onReady: onPlayerReady,
+            onStateChange: onPlayerStateChange,
+            onError: onPlayerError
+        }
+    });
+};
+
+function onPlayerReady() {
+    ytReady = true;
+    ytPlayer.setVolume(currentVolume);
+
+    if (pendingIndex !== -1) {
+        const index = pendingIndex;
+        pendingIndex = -1;
+        playSong(index);
+    }
+}
+
+function onPlayerStateChange(event) {
+    const state = event.data;
+
+    isPlaying =
+        state === YT.PlayerState.PLAYING ||
+        state === YT.PlayerState.BUFFERING;
+
+    updatePlayButton();
+
+    if (state === YT.PlayerState.ENDED) {
+        playNext();
+    }
+}
+
+function onPlayerError() {
+    // Some videos block embedding. Skip to the next one automatically.
+    console.warn("This video cannot be played here. Skipping.");
+
+    if (songTitle) songTitle.textContent = "Can't play this one, skipping...";
+
+    playNext();
+}
+
+
+// 4. HELPER FUNCTIONS
 
 function showMessage(message) {
     if (!results) return;
@@ -59,13 +150,11 @@ function showSearchSection() {
 function updatePlayButton() {
     if (!playBtn) return;
 
-    const playing = !audio.paused && !audio.ended;
-
-    playBtn.innerHTML = playing
+    playBtn.innerHTML = isPlaying
         ? '<i class="fas fa-pause" aria-hidden="true"></i>'
         : '<i class="fas fa-play" aria-hidden="true"></i>';
 
-    playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+    playBtn.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
 }
 
 function highlightCurrentTrack() {
@@ -74,7 +163,18 @@ function highlightCurrentTrack() {
     });
 }
 
-// Finds the next song with a preview, moving forward (1) or backward (-1).
+// YouTube titles come back with HTML entities such as &amp; and &#39;
+function decodeHtml(text) {
+    const box = document.createElement("textarea");
+    box.innerHTML = text || "";
+    return box.value;
+}
+
+function cleanArtist(name) {
+    return decodeHtml(name).replace(/\s*-\s*Topic$/i, "").replace(/VEVO$/i, "").trim();
+}
+
+// Finds the next song with a video, moving forward (1) or backward (-1).
 function findPlayable(start, step) {
     if (!songs.length) return -1;
 
@@ -83,16 +183,16 @@ function findPlayable(start, step) {
     for (let attempts = 0; attempts < songs.length; attempts++) {
         index = (index + step + songs.length) % songs.length;
 
-        if (songs[index].preview) return index;
+        if (songs[index].videoId) return index;
     }
 
     return -1;
 }
 
 
-// 4. SEARCH EVENTS
-// NOTE: the click handler is wrapped so the click event is NOT passed in as
-// the "query" argument (that was crashing with "query.trim is not a function").
+// 5. SEARCH EVENTS
+// The click handler is wrapped so the click event is NOT passed in as
+// the "query" argument.
 
 if (searchBtn) {
     searchBtn.addEventListener("click", function () {
@@ -110,60 +210,50 @@ if (searchInput) {
 }
 
 
-// 5. FETCH SONGS
-// Tries your own backend first (/api/search). If it is not available
-// (for example on static hosting) it falls back to the public iTunes
-// Search API, which needs no key and returns 30-second previews.
+// 6. FETCH SONGS FROM YOUTUBE
 
-function normalizeSong(item) {
-    return {
-        title: item.title || item.trackName || "",
-        artist: item.artist || item.artistName || "",
-        artwork: item.artwork || item.artworkUrl100 || "",
-        preview: item.preview || item.previewUrl || ""
-    };
-}
-
-async function fetchFromBackend(query, signal) {
-    const response = await fetch(
-        "/api/search?q=" + encodeURIComponent(query),
-        { headers: { Accept: "application/json" }, signal }
-    );
-
-    const type = response.headers.get("content-type") || "";
-
-    if (!response.ok || !type.includes("application/json")) {
-        throw new Error("Backend search unavailable (" + response.status + ").");
+async function fetchFromYouTube(query, signal) {
+    if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === "YOUR_API_KEY_HERE") {
+        throw new Error("Add your YouTube API key at the top of script.js.");
     }
 
-    const data = await response.json();
-
-    if (!Array.isArray(data)) {
-        throw new Error("Unexpected response from music server.");
-    }
-
-    return data.map(normalizeSong);
-}
-
-async function fetchFromItunes(query, signal) {
     const url =
-        "https://itunes.apple.com/search?media=music&entity=song&limit=24&term=" +
-        encodeURIComponent(query);
+        "https://www.googleapis.com/youtube/v3/search" +
+        "?part=snippet" +
+        "&type=video" +
+        "&videoCategoryId=10" +      // Music category
+        "&videoEmbeddable=true" +    // only videos that can play in our player
+        "&maxResults=24" +
+        "&q=" + encodeURIComponent(query) +
+        "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
 
     const response = await fetch(url, { signal });
 
     if (!response.ok) {
+        if (response.status === 403) {
+            throw new Error("YouTube quota reached or key not allowed for this site (403).");
+        }
+
         throw new Error("Search failed (" + response.status + ").");
     }
 
     const data = await response.json();
 
-    return (data.results || []).map(function (item) {
-        const song = normalizeSong(item);
-        // Request a larger cover image
-        song.artwork = song.artwork.replace("100x100", "300x300");
-        return song;
-    });
+    return (data.items || [])
+        .filter(function (item) {
+            return item.id && item.id.videoId;
+        })
+        .map(function (item) {
+            const thumbs = item.snippet.thumbnails || {};
+            const best = thumbs.high || thumbs.medium || thumbs.default || {};
+
+            return {
+                title: decodeHtml(item.snippet.title),
+                artist: cleanArtist(item.snippet.channelTitle),
+                artwork: best.url || "",
+                videoId: item.id.videoId
+            };
+        });
 }
 
 async function searchMusic(query) {
@@ -194,17 +284,7 @@ async function searchMusic(query) {
     showSearchSection();
 
     try {
-        let found;
-
-        try {
-            found = await fetchFromBackend(searchQuery, currentController.signal);
-        } catch (backendError) {
-            if (backendError.name === "AbortError") throw backendError;
-
-            console.warn("Backend search failed, using iTunes:", backendError.message);
-
-            found = await fetchFromItunes(searchQuery, currentController.signal);
-        }
+        const found = await fetchFromYouTube(searchQuery, currentController.signal);
 
         // Ignore outdated results
         if (currentController !== searchController) return;
@@ -218,7 +298,7 @@ async function searchMusic(query) {
 
         console.error("Music search error:", error);
 
-        showMessage("Unable to search music. " + error.message + " Please try again.");
+        showMessage("Unable to search music. " + error.message);
     } finally {
         if (currentController === searchController && searchBtn) {
             searchBtn.disabled = false;
@@ -228,7 +308,7 @@ async function searchMusic(query) {
 }
 
 
-// 6. VIBE, FEATURED AND PLAYLIST BUTTONS
+// 7. VIBE, FEATURED AND PLAYLIST BUTTONS
 // Every element with data-search (or the old data-vibe) starts a search.
 
 document.querySelectorAll("[data-search], [data-vibe]").forEach(function (element) {
@@ -252,7 +332,7 @@ document.querySelectorAll("[data-focus-search]").forEach(function (link) {
 });
 
 
-// 7. DISPLAY SEARCH RESULTS
+// 8. DISPLAY SEARCH RESULTS
 
 function renderSongs() {
     if (!results) return;
@@ -286,8 +366,7 @@ function renderSongs() {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "track-play-btn";
-        button.textContent = song.preview ? "▶ Play Preview" : "Preview unavailable";
-        button.disabled = !song.preview;
+        button.textContent = "▶ Play Full Song";
 
         button.addEventListener("click", function () {
             playSong(index);
@@ -299,67 +378,55 @@ function renderSongs() {
 }
 
 
-// 8. PLAY A SONG
+// 9. PLAY A SONG
 
-async function playSong(index) {
+function playSong(index) {
     const song = songs[index];
 
-    if (!song || !song.preview) return;
+    if (!song || !song.videoId) return;
 
     currentIndex = index;
-
-    audio.src = song.preview;
 
     if (songTitle) songTitle.textContent = song.title || "Unknown Song";
     if (artistName) artistName.textContent = song.artist || "Unknown Artist";
 
     highlightCurrentTrack();
 
-    try {
-        await audio.play();
-    } catch (error) {
-        // AbortError just means another song was selected quickly - not a real failure.
-        if (error.name !== "AbortError") {
-            console.error("Playback error:", error);
-        }
+    if (!ytReady) {
+        // Player still loading: remember the click and play when ready.
+        pendingIndex = index;
+        return;
     }
 
-    updatePlayButton();
+    ytPlayer.loadVideoById(song.videoId);
 }
 
 
-// 9. PLAY / PAUSE
+// 10. PLAY / PAUSE
 
 if (playBtn) {
-    playBtn.addEventListener("click", async function () {
-        if (!audio.src) {
-            const first = songs.findIndex(function (song) {
-                return song.preview;
-            });
+    playBtn.addEventListener("click", function () {
+        if (!ytReady) return;
 
-            if (first !== -1) await playSong(first);
+        // Nothing loaded yet: start the first result
+        if (currentIndex === -1) {
+            const first = findPlayable(-1, 1);
+
+            if (first !== -1) playSong(first);
 
             return;
         }
 
-        if (audio.paused) {
-            try {
-                await audio.play();
-            } catch (error) {
-                if (error.name !== "AbortError") {
-                    console.error("Playback error:", error);
-                }
-            }
+        if (isPlaying) {
+            ytPlayer.pauseVideo();
         } else {
-            audio.pause();
+            ytPlayer.playVideo();
         }
-
-        updatePlayButton();
     });
 }
 
 
-// 10. NEXT / PREVIOUS / AUTO-ADVANCE
+// 11. NEXT / PREVIOUS / AUTO-ADVANCE
 
 function playNext() {
     const next = findPlayable(currentIndex, 1);
@@ -368,9 +435,9 @@ function playNext() {
 }
 
 function playPrevious() {
-    // Start of a song? restart it. Otherwise go back one.
-    if (audio.currentTime > 3) {
-        audio.currentTime = 0;
+    // More than 3 seconds in? restart the song. Otherwise go back one.
+    if (ytReady && currentIndex !== -1 && ytPlayer.getCurrentTime() > 3) {
+        ytPlayer.seekTo(0, true);
         return;
     }
 
@@ -382,29 +449,16 @@ function playPrevious() {
 if (nextBtn) nextBtn.addEventListener("click", playNext);
 if (previousBtn) previousBtn.addEventListener("click", playPrevious);
 
-audio.addEventListener("ended", playNext);
-
-
-// 11. AUDIO EVENTS (keep the button in sync with the real audio state)
-
-audio.addEventListener("play", updatePlayButton);
-audio.addEventListener("pause", updatePlayButton);
-
-audio.addEventListener("error", function () {
-    updatePlayButton();
-    console.error("The audio preview could not be loaded.");
-
-    if (songTitle) songTitle.textContent = "Preview could not be loaded";
-});
-
 
 // 12. VOLUME
 
 if (volumeInput) {
-    volumeInput.value = audio.volume * 100;
+    volumeInput.value = currentVolume;
 
     volumeInput.addEventListener("input", function () {
-        audio.volume = Number(this.value) / 100;
+        currentVolume = Number(this.value);
+
+        if (ytReady) ytPlayer.setVolume(currentVolume);
     });
 }
 
@@ -457,3 +511,4 @@ if (mainContent && "IntersectionObserver" in window) {
 // 15. INITIALIZE
 
 updatePlayButton();
+loadYouTubeApi();
