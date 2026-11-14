@@ -1094,28 +1094,12 @@ a {
 
 /* 15. MUSIC PLAYER */
 
-.player {
-    grid-column: 1 / -1;
-    grid-row: 2;
-
-    z-index: 10;
-
-    background: rgba(17,24,42,0.97);
-
-    backdrop-filter: blur(20px);
-
-    border: 1px solid var(--border);
-    border-radius: 16px;
-
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-
-    align-items: center;
-
-    padding: 10px 20px;
-    gap: 15px;
-
-    box-shadow: 0 -5px 30px rgba(0,0,0,0.2);
+#player {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 220px;
+  height: 220px;
 }
 
 .song-info {
@@ -1556,4 +1540,18 @@ a:focus-visible,
         transition-duration: 0.01ms !important;
     }
 
+}
+.dev-btn {
+  display: inline-block;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #7c5cff, #ff5c9d);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform .15s, box-shadow .15s;
+}
+.dev-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(124, 92, 255, .4);
 }
