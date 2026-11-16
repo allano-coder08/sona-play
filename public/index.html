@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sona Play</title>
   <link rel="stylesheet" href="style.css">
+
+  <!-- Vercel Web Analytics -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
   <div class="app">
@@ -75,7 +81,10 @@
       <button class="nav-item" data-view="library"><span data-icon="library"></span>Library</button>
     </nav>
   </div>
-  <div class="marquee" aria-label="Allan Kiplangat"><div class="marquee-track"></div></div>
+
+  <!-- Developed by Allan Kiplangat (sliding strip) -->
+  <div class="marquee" aria-label="Developed by Allan Kiplangat"><div class="marquee-track"></div></div>
+
   <div id="yt-player"></div>
   <div id="menu" class="ctx hidden"></div>
   <div id="toast" class="toast"></div>
