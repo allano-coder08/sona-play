@@ -1,482 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Allan Music - search songs and artists, discover new sounds and play previews.">
-
-    <title>SONAPLAY| Discover Your Sound</title>
-
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%A7%3C/text%3E%3C/svg%3E">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sona Play</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
+  <div class="app">
 
-<div class="app">
-
-    <!-- SIDEBAR -->
+    <!-- Sidebar (desktop) -->
     <aside class="sidebar">
-
-        <div class="logo">
-            <i aria-hidden="true" class="fas fa-music"></i>
-            <span>SONA <strong>PLAY</strong></span>
+      <div class="box nav">
+        <div class="logo"><span class="logo-mark" data-icon="note"></span> Sona Play</div>
+        <button class="nav-item active" data-view="home"><span data-icon="home"></span>Home</button>
+        <button class="nav-item" data-view="search"><span data-icon="search"></span>Search</button>
+        <a class="nav-item" href="developer.html"><span data-icon="code"></span>Developer</a>
+      </div>
+      <div class="box library">
+        <div class="lib-head">
+          <span class="lib-title"><span data-icon="library"></span>Your Library</span>
+          <button class="icon-btn" id="newPlaylist" title="Create playlist" aria-label="Create playlist"><span data-icon="plus"></span></button>
         </div>
-
-        <nav class="navigation" aria-label="Main navigation">
-
-            <p class="nav-label">MENU</p>
-
-            <a href="#home-section" class="nav-link active">
-                <i aria-hidden="true" class="fas fa-house"></i>
-                <span>Home</span>
-            </a>
-
-            <a href="#search-results-section" class="nav-link" data-focus-search>
-                <i aria-hidden="true" class="fas fa-search"></i>
-                <span>Search</span>
-            </a>
-            <a href="developer.html" class="dev-btn">Developer</a>
-
-            <a href="#library-section" class="nav-link">
-                <i aria-hidden="true" class="fas fa-book-open"></i>
-                <span>Your Library</span>
-            </a>
-
-            <div class="sidebar-divider"></div>
-
-            <p class="nav-label">DISCOVER</p>
-
-            <a href="#playlists-section" class="nav-link">
-                <i aria-hidden="true" class="fas fa-wand-magic-sparkles"></i>
-                <span>Find Your Vibe</span>
-            </a>
-
-            <a href="#trending-section" class="nav-link">
-                <i aria-hidden="true" class="fas fa-fire"></i>
-                <span>Trending Playlists</span>
-            </a>
-
-        </nav>
-
-        <!-- PREMIUM CARD -->
-        <div class="premium-card">
-
-            <i aria-hidden="true" class="fas fa-crown"></i>
-
-            <p class="premium-title">Music Without Limits</p>
-
-            <p>Discover more music and enjoy your favourite sounds.</p>
-
-            <a href="#featured-section">Explore Music</a>
-
-        </div>
-
-        <div class="sidebar-bottom">
-            <i aria-hidden="true" class="fas fa-headphones"></i>
-            <p>Music for a Better Mood</p>
-        </div>
-
+        <ul id="libraryList" class="lib-list"></ul>
+      </div>
     </aside>
 
-
-    <!-- MAIN CONTENT -->
-    <main class="main-content" id="mainContent">
-
-        <!-- TOP HEADER -->
-        <header class="top-header">
-
-            <div class="mobile-logo">
-                <i aria-hidden="true" class="fas fa-music"></i>
-                Allan Music
-            </div>
-
-            <div class="top-search" id="search-section">
-
-                <i aria-hidden="true" class="fas fa-search"></i>
-
-                <input
-                    type="text"
-                    id="searchInput"
-                    placeholder="Search songs, artists..."
-                    aria-label="Search songs or artists"
-                    autocomplete="off"
-                >
-
-                <button id="searchBtn" type="button">Search</button>
-
-            </div>
-
-            <div class="header-actions">
-
-                <button id="loginBtn" class="spotify-btn" type="button" aria-label="Allano music spotify">
-                    <i aria-hidden="true" class="fa-brands fa-spotify"></i>
-                    <span>Allano</span>
-                </button> 
-
-                <button class="notification-btn" aria-label="Notifications" type="button">
-                    <i aria-hidden="true" class="fa-regular fa-bell"></i>
-                </button>
-
-                <div class="profile-avatar" aria-hidden="true">A</div>
-
-            </div>
-
-        </header>
-
-
-        <!-- MOBILE NAVIGATION (the sidebar is hidden on small screens) -->
-        <nav class="mobile-nav" aria-label="Quick navigation">
-            <a href="#home-section" class="nav-link active">Home</a>
-            <a href="#playlists-section" class="nav-link">Vibes</a>
-            <a href="#featured-section" class="nav-link">Featured</a>
-            <a href="#trending-section" class="nav-link">Playlists</a>
-            <a href="developer.html" class="dev-btn">Developer</a>
-            <a href="#library-section" class="nav-link">Library</a>
-        </nav>
-
-
-        <!-- SEARCH RESULTS -->
-        <section class="music-section search-results-section"
-                 id="search-results-section"
-                 aria-labelledby="results-heading">
-
-            <div class="section-heading">
-
-                <div>
-                    <span class="section-subtitle">YOUR SEARCH DISCOVERIES</span>
-                    <h2 id="results-heading">Search Results</h2>
-                </div>
-
-            </div>
-
-            <div id="results" aria-live="polite">
-
-                <p>Search for your favourite songs and artists.</p>
-
-            </div>
-
-        </section>
-
-
-        <!-- WELCOME HERO -->
-        <section class="hero" id="home-section">
-
-            <div class="hero-content">
-
-                <span class="hero-tag">
-                    <i aria-hidden="true" class="fas fa-wave-square"></i>
-                    YOUR MUSIC DESTINATION
-                </span>
-
-                <h1>
-                    Good Music,<br>
-                    Good Mood <span>🎧</span>
-                </h1>
-
-                <p>
-                    Discover new sounds, explore your favourite artists
-                    and enjoy music that matches your mood.
-                </p>
-
-                <a href="#featured-section" class="hero-btn">
-                    <i aria-hidden="true" class="fas fa-play"></i>
-                    Start Discovering
-                </a>
-
-            </div>
-
-            <div class="hero-decoration">
-
-                <i aria-hidden="true" class="fas fa-headphones"></i>
-                <i aria-hidden="true" class="fas fa-music music-note note-one"></i>
-                <i aria-hidden="true" class="fas fa-music music-note note-two"></i>
-
-            </div>
-
-        </section>
-
-
-        <!-- QUICK DISCOVERY -->
-        <section class="quick-section" id="playlists-section">
-
-            <div class="section-heading">
-
-                <div>
-                    <span class="section-subtitle">EXPLORE YOUR SOUND</span>
-                    <h2>Find Your Vibe</h2>
-                </div>
-
-            </div>
-
-            <div class="quick-grid">
-
-                <button type="button" class="quick-card afro" data-search="afrobeats">
-                    <i aria-hidden="true" class="fas fa-fire"></i>
-                    <span>Afrobeats</span>
-                </button>
-
-                <button type="button" class="quick-card chill" data-search="chill hits">
-                    <i aria-hidden="true" class="fas fa-cloud-sun"></i>
-                    <span>Chill Hits</span>
-                </button>
-
-                <button type="button" class="quick-card party" data-search="party music">
-                    <i aria-hidden="true" class="fas fa-bolt"></i>
-                    <span>Party Vibes</span>
-                </button>
-
-                <button type="button" class="quick-card love" data-search="love songs">
-                    <i aria-hidden="true" class="fas fa-heart"></i>
-                    <span>Love Songs</span>
-                </button>
-
-            </div>
-
-        </section>
-
-
-        <!-- FEATURED MUSIC -->
-        <section class="music-section" id="featured-section">
-
-            <div class="section-heading">
-
-                <div>
-                    <span class="section-subtitle">HANDPICKED FOR YOU</span>
-                    <h2>
-                        <i aria-hidden="true" class="fas fa-star"></i>
-                        Featured Music
-                    </h2>
-                </div>
-
-                <a href="#search-results-section" class="see-all" data-focus-search>
-                    Discover More
-                    <i aria-hidden="true" class="fas fa-arrow-right"></i>
-                </a>
-
-            </div>
-
-            <div class="featured-grid">
-
-                <div class="featured-card">
-                    <div class="featured-image">
-                        <img src="https://placehold.co/300x300/202020/9cff00?text=Music+1"
-                             alt="Discover new music" width="300" height="300" loading="lazy">
-                    </div>
-                    <h3>Discover New Music</h3>
-                    <p>Explore your next favourite song.</p>
-                    <button type="button" class="card-action" data-search="popular new songs">
-                        <i aria-hidden="true" class="fas fa-play"></i>
-                        Explore
-                    </button>
-                </div>
-
-                <div class="featured-card">
-                    <div class="featured-image">
-                        <img src="https://placehold.co/300x300/202020/9cff00?text=Music+2"
-                             alt="Artist collections" width="300" height="300" loading="lazy">
-                    </div>
-                    <h3>Artist Collections</h3>
-                    <p>Find music from your favourite artists.</p>
-                    <button type="button" class="card-action" data-search="popular music artists">
-                        <i aria-hidden="true" class="fas fa-play"></i>
-                        Explore
-                    </button>
-                </div>
-
-                <div class="featured-card">
-                    <div class="featured-image">
-                        <img src="https://placehold.co/300x300/202020/9cff00?text=Music+3"
-                             alt="Trending sounds" width="300" height="300" loading="lazy">
-                    </div>
-                    <h3>Trending Sounds</h3>
-                    <p>Discover popular music and new sounds.</p>
-                    <button type="button" class="card-action" data-search="trending popular songs">
-                        <i aria-hidden="true" class="fas fa-play"></i>
-                        Explore
-                    </button>
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <!-- TRENDING PLAYLISTS -->
-        <section class="music-section" id="trending-section">
-
-            <div class="section-heading">
-
-                <div>
-                    <span class="section-subtitle">MADE FOR EVERY MOOD</span>
-                    <h2>
-                        <i aria-hidden="true" class="fas fa-fire"></i>
-                        Trending Playlists
-                    </h2>
-                </div>
-
-            </div>
-
-            <div class="playlist-grid">
-
-                <button type="button" class="playlist-card" data-search="afrobeats">
-                    <span class="playlist-cover cover-one"><i aria-hidden="true" class="fas fa-music"></i></span>
-                    <span class="playlist-title">Afrobeats Vibes</span>
-                    <span class="playlist-desc">Feel the rhythm.</span>
-                </button>
-
-                <button type="button" class="playlist-card" data-search="chill music">
-                    <span class="playlist-cover cover-two"><i aria-hidden="true" class="fas fa-cloud-sun"></i></span>
-                    <span class="playlist-title">Chill Hits</span>
-                    <span class="playlist-desc">Relax and unwind.</span>
-                </button>
-
-                <button type="button" class="playlist-card" data-search="party music">
-                    <span class="playlist-cover cover-three"><i aria-hidden="true" class="fas fa-bolt"></i></span>
-                    <span class="playlist-title">Party Vibes</span>
-                    <span class="playlist-desc">Keep the energy alive.</span>
-                </button>
-
-                <button type="button" class="playlist-card" data-search="love songs">
-                    <span class="playlist-cover cover-four"><i aria-hidden="true" class="fas fa-heart"></i></span>
-                    <span class="playlist-title">Love Songs</span>
-                    <span class="playlist-desc">Music from the heart.</span>
-                </button>
-
-            </div>
-
-        </section>
-
-
-        <!-- LIBRARY -->
-        <section class="music-section library-section" id="library-section">
-
-            <div class="section-heading">
-
-                <div>
-                    <span class="section-subtitle">YOUR PERSONAL COLLECTION</span>
-                    <h2>Your Library</h2>
-                </div>
-
-            </div>
-
-            <div id="libraryContent">
-
-                <p>Access your saved songs and favourite playlists here.</p>
-
-            </div>
-
-        </section>
-
-
-        <!-- ABOUT DEVELOPER -->
-        <section class="developer-section">
-
-            <div class="developer-image">
-                <img src="developer.jpeg"
-                     alt="Allan Kiplangat - Developer"
-                     width="125" height="125"
-                     loading="lazy"
-                     onerror="this.onerror=null;this.src='https://placehold.co/125x125/17223d/9b72ff?text=A';">
-            </div>
-
-            <div class="developer-info">
-
-                <span class="section-subtitle">BEHIND THE PROJECT</span>
-
-                <h2>Meet the Developer</h2>
-
-                <h3>Allan Kiplangat</h3>
-
-                <p class="developer-role">
-                    Computer Science Student | Moi University
-                </p>
-
-                <p>
-                    Creator and developer of Allan Music Bot.
-                    Passionate about technology, programming,
-                    innovation and building meaningful digital .
-                </p>
-
-            </div>
-
-        </section>
-
-
-        <!-- FOOTER -->
-        <footer class="site-footer">
-
-            <p>
-                © 2026 Allan Music.
-                Made with <i aria-hidden="true" class="fas fa-heart"></i> for music lovers.
-            </p>
-
-        </footer>
-
+    <!-- Main content -->
+    <main class="main" id="main">
+      <header class="topbar">
+        <div class="search-wrap">
+          <span data-icon="search"></span>
+          <input id="searchInput" type="search" placeholder="What do you want to play?" autocomplete="off">
+        </div>
+        <button class="avatar" id="profileBtn" aria-label="Profile" title="Profile">G</button>
+      </header>
+      <section id="view" class="view"></section>
     </main>
 
-
-    <!-- MUSIC PLAYER -->
-    <div class="player" role="region" aria-label="Music player">
-
-        <div class="song-info">
-
-            <div class="album-art">
-                <i aria-hidden="true" class="fas fa-music"></i>
-            </div>
-
-            <div class="song-details">
-                <h4 id="songTitle">No song selected</h4>
-                <p id="artistName">Allan Music Bot</p>
-            </div>
-
+    <!-- Now playing bar -->
+    <footer class="player">
+      <div class="p-left">
+        <img id="pArt" class="p-art" alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+        <div class="p-meta">
+          <div id="pTitle" class="p-title">Nothing playing</div>
+          <div id="pArtist" class="p-artist">Pick a song to start</div>
         </div>
+        <button class="icon-btn heart" id="pHeart" aria-label="Add to Liked Songs"><span data-icon="heart"></span></button>
+      </div>
 
-
-        <div class="player-controls">
-
-            <button id="previousBtn" aria-label="Previous song" type="button">
-                <i aria-hidden="true" class="fas fa-backward-step"></i>
-            </button>
-
-            <button id="playBtn" class="main-play" aria-label="Play" type="button">
-                <i aria-hidden="true" class="fas fa-play"></i>
-            </button>
-
-            <button id="nextBtn" aria-label="Next song" type="button">
-                <i aria-hidden="true" class="fas fa-forward-step"></i>
-            </button>
-
+      <div class="p-center">
+        <div class="ctrls">
+          <button class="icon-btn" id="prevBtn" aria-label="Previous"><span data-icon="prev"></span></button>
+          <button class="play-btn" id="playBtn" aria-label="Play"><span data-icon="play"></span></button>
+          <button class="icon-btn" id="nextBtn" aria-label="Next"><span data-icon="next"></span></button>
         </div>
-
-
-        <div class="volume">
-
-            <i aria-hidden="true" class="fas fa-volume-high"></i>
-
-            <input
-                type="range"
-                id="volumeControl"
-                min="0"
-                max="100"
-                value="50"
-                aria-label="Volume"
-            >
-
+        <div class="seek">
+          <span id="tCur">0:00</span>
+          <input id="seek" type="range" min="0" max="1000" value="0">
+          <span id="tDur">0:00</span>
         </div>
+      </div>
 
-    </div>
+      <div class="p-right">
+        <span data-icon="volume"></span>
+        <input id="vol" type="range" min="0" max="100" value="80">
+      </div>
+    </footer>
 
-</div>
+    <!-- Bottom nav (mobile) -->
+    <nav class="bottomnav">
+      <button class="nav-item active" data-view="home"><span data-icon="home"></span>Home</button>
+      <button class="nav-item" data-view="search"><span data-icon="search"></span>Search</button>
+      <button class="nav-item" data-view="library"><span data-icon="library"></span>Library</button>
+    </nav>
+  </div>
+  <div class="marquee" aria-label="Allan Kiplangat"><div class="marquee-track"></div></div>
+  <div id="yt-player"></div>
+  <div id="menu" class="ctx hidden"></div>
+  <div id="toast" class="toast"></div>
 
-<script src="script.js"></script>
-
+  <script src="script.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>
