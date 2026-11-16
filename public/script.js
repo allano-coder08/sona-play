@@ -361,7 +361,7 @@ function setMediaSession() {
   navigator.mediaSession.setActionHandler("nexttrack", next);
 }
 /* ---------- footer marquee ---------- */
-const MARQUEE_TEXT = "Develop Allan Kiplangat";
+const MARQUEE_TEXT = "Developed by Allan Kiplangat";
 function buildMarquee() {
   const g = Array.from({ length: 12 }, () => `<span>${esc(MARQUEE_TEXT)}</span>`).join("");
   $(".marquee-track").innerHTML = `<div class="marquee-group">${g}</div><div class="marquee-group" aria-hidden="true">${g}</div>`;
