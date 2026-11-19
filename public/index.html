@@ -2,257 +2,234 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sona Play</title>
-  <meta name="description" content="Sona Play: discover music on YouTube and stream or download eligible independent music from Jamendo.">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="music-sources.css">
-  <link rel="manifest" href="manifest.json">
+    <title>SonaPlay | We're Improving Your Experience</title>
 
-  <meta name="theme-color" content="#121212">
-  <link rel="icon" href="icon-192.png">
-  <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="description" content="SonaPlay is temporarily under maintenance as we work on exciting improvements to your music experience.">
 
-  <script>
-    window.va = window.va || function () {
-      (window.vaq = window.vaq || []).push(arguments);
-    };
-  </script>
+    <link rel="stylesheet" href="style.css">
 
-  <script defer src="/_vercel/insights/script.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("sw.js")
-          .catch(error => console.error("Service worker registration failed:", error));
-      });
-    }
-  </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 
 <body>
-  <div class="app">
 
-    <aside class="sidebar">
-      <div class="box nav">
+    <div class="background-glow glow-one"></div>
+    <div class="background-glow glow-two"></div>
 
-        <div class="logo">
-          <span class="logo-mark" data-icon="note"></span>
-          Sona Play
-        </div>
-
-        <button class="nav-item active" data-view="home">
-          <span data-icon="home"></span>Home
-        </button>
-
-        <button class="nav-item" data-view="search">
-          <span data-icon="search"></span>Search
-        </button>
-
-        <a class="nav-item" href="#jamendo-section">
-          <span data-icon="plus"></span>Free Music
+    <header class="navbar">
+        <a href="#" class="brand">
+            <span class="brand-icon">
+                <i class="fa-solid fa-play"></i>
+            </span>
+            Sona<span>Play</span>
         </a>
 
-        <a class="nav-item" href="developer.html">
-          <span data-icon="code"></span>Developer
-        </a>
-
-      </div>
-
-      <div class="box library">
-
-        <div class="lib-head">
-          <span class="lib-title">
-            <span data-icon="library"></span>Your Library
-          </span>
-
-          <button
-            class="icon-btn"
-            id="newPlaylist"
-            title="Create playlist"
-            aria-label="Create playlist">
-            <span data-icon="plus"></span>
-          </button>
+        <div class="nav-status">
+            <span class="status-dot"></span>
+            System Upgrade
         </div>
+    </header>
 
-        <ul id="libraryList" class="lib-list"></ul>
+    <main>
 
-      </div>
-    </aside>
+        <section class="hero">
 
-    <main class="main" id="main">
+            <div class="hero-badge">
+                <i class="fa-solid fa-screwdriver-wrench"></i>
+                TEMPORARILY UNDER MAINTENANCE
+            </div>
 
-      <header class="topbar">
+            <div class="music-visual">
+                <div class="music-circle circle-one"></div>
+                <div class="music-circle circle-two"></div>
 
-        <div class="search-wrap">
-          <span data-icon="search"></span>
+                <div class="music-icon">
+                    <i class="fa-solid fa-headphones"></i>
+                </div>
 
-          <input
-            id="searchInput"
-            type="search"
-            placeholder="Search YouTube and free Jamendo music"
-            autocomplete="off">
-        </div>
+                <div class="floating-icon icon-one">
+                    <i class="fa-solid fa-music"></i>
+                </div>
 
-        <button
-          class="avatar"
-          id="profileBtn"
-          aria-label="Profile"
-          title="Profile">G</button>
+                <div class="floating-icon icon-two">
+                    <i class="fa-solid fa-compact-disc"></i>
+                </div>
 
-      </header>
+                <div class="floating-icon icon-three">
+                    <i class="fa-solid fa-wave-square"></i>
+                </div>
+            </div>
 
-      <section class="hero hero-banner" aria-labelledby="heroTitle">
+            <h1>
+                Great music.<br>
+                <span>Even better experience.</span>
+            </h1>
 
-        <p class="hero-kicker">Welcome to Sona Play</p>
+            <p class="hero-description">
+                SonaPlay is currently undergoing maintenance.
+                We're working behind the scenes to introduce
+                exciting improvements and make your music
+                experience smoother, smarter and better.
+            </p>
 
-        <h1 id="heroTitle">
-          Play anything.<br>
-          Discover free music.
-        </h1>
+            <div class="maintenance-label">
+                <span></span>
+                SonaPlay is getting an upgrade
+            </div>
 
-        <p class="hero-text">
-          Search YouTube and Jamendo together.
-          Stream tracks and download music when the artist's license allows it.
-        </p>
+        </section>
 
-        <div class="hero-actions">
 
-          <button class="hero-btn primary" id="heroSearch" type="button">
-            Search songs
-          </button>
+        <section class="improvements">
 
-          <a class="hero-btn ghost" href="#jamendo-section">
-            Explore free music
-          </a>
+            <div class="section-heading">
+                <span>WHAT'S COMING</span>
+                <h2>We're building something better.</h2>
 
-        </div>
+                <p>
+                    Our upcoming improvements are focused on
+                    giving you more control and a better way
+                    to enjoy your music.
+                </p>
+            </div>
 
-      </section>
+            <div class="feature-grid">
 
-      <section id="view" class="view"></section>
+                <div class="feature-card">
+                    <div class="feature-icon purple">
+                        <i class="fa-solid fa-download"></i>
+                    </div>
 
-      <div id="jamendo-section" class="jamendo-block"></div>
+                    <h3>Music Downloads</h3>
+
+                    <p>
+                        Improved song downloading features
+                        to help users enjoy supported music
+                        offline.
+                    </p>
+                </div>
+
+
+                <div class="feature-card">
+                    <div class="feature-icon blue">
+                        <i class="fa-solid fa-user-shield"></i>
+                    </div>
+
+                    <h3>User Authentication</h3>
+
+                    <p>
+                        A more secure account experience
+                        with user registration and login.
+                    </p>
+                </div>
+
+
+                <div class="feature-card">
+                    <div class="feature-icon green">
+                        <i class="fa-solid fa-headphones-simple"></i>
+                    </div>
+
+                    <h3>Better Music Experience</h3>
+
+                    <p>
+                        Improvements to music discovery,
+                        playback and overall application
+                        performance.
+                    </p>
+                </div>
+
+
+                <div class="feature-card">
+                    <div class="feature-icon orange">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+
+                    <h3>More Improvements</h3>
+
+                    <p>
+                        New features, interface refinements
+                        and recommendations based on
+                        user feedback.
+                    </p>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <section class="contact-section">
+
+            <div class="contact-content">
+
+                <div class="contact-icon">
+                    <i class="fa-brands fa-whatsapp"></i>
+                </div>
+
+                <div>
+                    <h2>Need to get in touch?</h2>
+
+                    <p>
+                        Have a suggestion, question or feedback?
+                        We'd love to hear from you.
+                    </p>
+                </div>
+
+                <a href="https://wa.me/254180553815"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="whatsapp-button">
+
+                    <i class="fa-brands fa-whatsapp"></i>
+                    Contact Us
+                </a>
+
+            </div>
+
+        </section>
+
+
+        <section class="signature">
+
+            <p>Thank you for being part of our journey.</p>
+
+            <span>Best regards,</span>
+
+            <h3>Allan Kiplangat</h3>
+
+            <small>Founder & Developer · SonaPlay</small>
+
+        </section>
 
     </main>
 
-    <footer class="player">
 
-      <div class="p-left">
-
-        <img
-          id="pArt"
-          class="p-art"
-          alt=""
-          src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
-
-        <div class="p-meta">
-          <div id="pTitle" class="p-title">Nothing playing</div>
-          <div id="pArtist" class="p-artist">Pick a song to start</div>
+    <footer>
+        <div class="footer-brand">
+            <i class="fa-solid fa-play"></i>
+            SonaPlay
         </div>
 
-        <button
-          class="icon-btn heart"
-          id="pHeart"
-          aria-label="Add to Liked Songs">
-          <span data-icon="heart"></span>
-        </button>
+        <p>
+            © <span id="year"></span> SonaPlay.
+            All rights reserved.
+        </p>
 
-      </div>
-
-      <div class="p-center">
-
-        <div class="ctrls">
-
-          <button class="icon-btn" id="prevBtn" aria-label="Previous">
-            <span data-icon="prev"></span>
-          </button>
-
-          <button class="play-btn" id="playBtn" aria-label="Play">
-            <span data-icon="play"></span>
-          </button>
-
-          <button class="icon-btn" id="nextBtn" aria-label="Next">
-            <span data-icon="next"></span>
-          </button>
-
-        </div>
-
-        <div class="seek">
-          <span id="tCur">0:00</span>
-
-          <input
-            id="seek"
-            type="range"
-            min="0"
-            max="1000"
-            value="0"
-            aria-label="Seek">
-
-          <span id="tDur">0:00</span>
-        </div>
-
-      </div>
-
-      <div class="p-right">
-        <span data-icon="volume"></span>
-
-        <input
-          id="vol"
-          type="range"
-          min="0"
-          max="100"
-          value="80"
-          aria-label="Volume">
-      </div>
-
+        <span class="footer-message">
+            Built for a better music experience.
+        </span>
     </footer>
 
-    <nav class="bottomnav">
 
-      <button class="nav-item active" data-view="home">
-        <span data-icon="home"></span>Home
-      </button>
-
-      <button class="nav-item" data-view="search">
-        <span data-icon="search"></span>Search
-      </button>
-
-      <button class="nav-item" data-view="library">
-        <span data-icon="library"></span>Library
-      </button>
-
-      <a class="nav-item" href="#jamendo-section">
-        <span data-icon="plus"></span>Free
-      </a>
-
-    </nav>
-
-  </div>
-
-  <div class="marquee" aria-label="Developed by Allan Kiplangat">
-    <div class="marquee-track"></div>
-  </div>
-
-  <div id="yt-player"></div>
-  <div id="menu" class="ctx hidden"></div>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-  <script src="script.js"></script>
-  <script src="jamendo.js"></script>
-
-  <script>
-    document.getElementById("heroSearch").addEventListener("click", function () {
-      const box = document.getElementById("searchInput");
-      box.scrollIntoView({ behavior: "smooth", block: "center" });
-      box.focus();
-    });
-  </script>
-
-  <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="script.js"></script>
 
 </body>
 </html>
