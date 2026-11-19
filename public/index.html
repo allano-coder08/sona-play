@@ -6,7 +6,7 @@
   <title>Sona Play</title>
   <meta name="description" content="Sona Play: stream any song and download free music from independent artists.">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="home.css">
+  <link rel="stylesheet" href="style.css">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#121212">
   <link rel="icon" href="icon-192.png">
@@ -114,6 +114,128 @@
 
   <!-- Developed by Allan Kiplangat (sliding strip) -->
   <div class="marquee" aria-label="Developed by Allan Kiplangat"><div class="marquee-track"></div></div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sona Play</title>
+  <meta name="description" content="Sona Play: discover music on YouTube and stream or download eligible independent music from Jamendo.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="home.css">
+  <link rel="stylesheet" href="music-sources.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#121212">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(error => console.error("Service worker registration failed:", error));
+      });
+    }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="box nav">
+        <div class="logo"><span class="logo-mark" data-icon="note"></span> Sona Play</div>
+        <button class="nav-item active" data-view="home"><span data-icon="home"></span>Home</button>
+        <button class="nav-item" data-view="search"><span data-icon="search"></span>Search</button>
+        <a class="nav-item" href="#jamendo-section"><span data-icon="plus"></span>Free Music</a>
+        <a class="nav-item" href="developer.html"><span data-icon="code"></span>Developer</a>
+      </div>
+      <div class="box library">
+        <div class="lib-head">
+          <span class="lib-title"><span data-icon="library"></span>Your Library</span>
+          <button class="icon-btn" id="newPlaylist" title="Create playlist" aria-label="Create playlist"><span data-icon="plus"></span></button>
+        </div>
+        <ul id="libraryList" class="lib-list"></ul>
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <header class="topbar">
+        <div class="search-wrap">
+          <span data-icon="search"></span>
+          <input id="searchInput" type="search" placeholder="Search YouTube and free Jamendo music" autocomplete="off">
+        </div>
+        <button class="avatar" id="profileBtn" aria-label="Profile" title="Profile">G</button>
+      </header>
+
+      <section class="hero hero-banner" aria-labelledby="heroTitle">
+        <p class="hero-kicker">Welcome to Sona Play</p>
+        <h1 id="heroTitle">Play anything.<br>Discover free music.</h1>
+        <p class="hero-text">Search YouTube and Jamendo together. Stream tracks and download music when the artist's license allows it.</p>
+        <div class="hero-actions">
+          <button class="hero-btn primary" id="heroSearch" type="button">Search songs</button>
+          <a class="hero-btn ghost" href="#jamendo-section">Explore free music</a>
+        </div>
+      </section>
+
+      <section id="view" class="view"></section>
+      <div id="jamendo-section" class="jamendo-block"></div>
+    </main>
+
+    <footer class="player">
+      <div class="p-left">
+        <img id="pArt" class="p-art" alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+        <div class="p-meta">
+          <div id="pTitle" class="p-title">Nothing playing</div>
+          <div id="pArtist" class="p-artist">Pick a song to start</div>
+        </div>
+        <button class="icon-btn heart" id="pHeart" aria-label="Add to Liked Songs"><span data-icon="heart"></span></button>
+      </div>
+      <div class="p-center">
+        <div class="ctrls">
+          <button class="icon-btn" id="prevBtn" aria-label="Previous"><span data-icon="prev"></span></button>
+          <button class="play-btn" id="playBtn" aria-label="Play"><span data-icon="play"></span></button>
+          <button class="icon-btn" id="nextBtn" aria-label="Next"><span data-icon="next"></span></button>
+        </div>
+        <div class="seek">
+          <span id="tCur">0:00</span>
+          <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
+          <span id="tDur">0:00</span>
+        </div>
+      </div>
+      <div class="p-right">
+        <span data-icon="volume"></span>
+        <input id="vol" type="range" min="0" max="100" value="80" aria-label="Volume">
+      </div>
+    </footer>
+
+    <nav class="bottomnav">
+      <button class="nav-item active" data-view="home"><span data-icon="home"></span>Home</button>
+      <button class="nav-item" data-view="search"><span data-icon="search"></span>Search</button>
+      <button class="nav-item" data-view="library"><span data-icon="library"></span>Library</button>
+      <a class="nav-item" href="#jamendo-section"><span data-icon="plus"></span>Free</a>
+    </nav>
+  </div>
+
+  <div class="marquee" aria-label="Developed by Allan Kiplangat"><div class="marquee-track"></div></div>
+  <div id="yt-player"></div>
+  <div id="menu" class="ctx hidden"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="script.js"></script>
+  <script src="jamendo.js"></script>
+  <script>
+    document.getElementById("heroSearch").addEventListener("click", function () {
+      const box = document.getElementById("searchInput");
+      box.scrollIntoView({ behavior: "smooth", block: "center" });
+      box.focus();
+    });
+  </script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
 
   <div id="yt-player"></div>
   <div id="menu" class="ctx hidden"></div>

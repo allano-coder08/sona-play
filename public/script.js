@@ -48,7 +48,11 @@ const lists = {};              // key -> array of tracks, used by cards/rows
 
 const save = () => { store.set("liked", liked); store.set("playlists", playlists); store.set("recent", recent); store.set("profile", profile); };
 const isLiked = id => liked.some(t => t.id === id);
-const slim = t => ({ id: t.id, title: t.title, artist: t.artist, thumb: t.thumb });
+const slim = t => ({
+  id: t.id, title: t.title, artist: t.artist, thumb: t.thumb,
+  source: t.source || "youtube", audio: t.audio || "", download: t.download || "",
+  license: t.license || "", jamendoId: t.jamendoId || ""
+});
 
 function toast(msg) {
   const el = $("#toast"); el.textContent = msg; el.classList.add("show");
@@ -87,6 +91,12 @@ async function ytSearch(q, max = 12) {
   store.set(ck, { t: Date.now(), v });
   return v;
 }
+
+async function jamendoSearch(q, limit = 20) {
+  if (!window.SonaJamendo?.search) throw new Error("Jamendo is still loading. Try again in a moment.");
+  return window.SonaJamendo.search(q, limit);
+}
+
 const errNotice = e => e.message === "QUOTA"
   ? `<div class="notice"><b>Search is busy right now.</b> Please try again later (it resets daily around 11:00 AM EAT). Your library and favourites still work.</div>`
   : `<div class="notice"><b>Couldn't load music.</b> ${esc(e.message)}</div>`;
@@ -155,18 +165,49 @@ const GENRES = [["Pop", "#8d67ab"], ["Hip Hop", "#ba5d07"], ["Rock", "#e13300"],
 async function renderSearch(q) {
   const my = ++renderId;
   if (!q) {
-    view.innerHTML = `<h1>Browse all</h1><div class="genres">${GENRES.map(g => `<button class="genre" data-q="${esc(g[0])} music" style="background:${g[1]}">${esc(g[0])}</button>`).join("")}</div>`;
+    view.innerHTML = `<h1>Browse all</h1><div class="genres">${GENRES.map(g => `<button class="genre" data-q="${esc(g[0])} music" style="background:${g[1]}">${esc(g[0])}</button>`).join("")}</div><p class="empty">Search once to find music from YouTube and Jamendo.</p>`;
     return;
   }
-  view.innerHTML = `<h1>Results for “${esc(q)}”</h1><div id="results"><div class="empty">Searching…</div></div>`;
-  try {
-    const res = await ytSearch(q, 20);
-    if (my !== renderId) return;
-    lists.results = res;
-    $("#results").innerHTML = res.length ? res.map((t, i) => row(t, "results", i)).join("") : `<div class="empty">No results found.</div>`;
-  } catch (e) { if (my === renderId) $("#results").innerHTML = errNotice(e); }
+
+  view.innerHTML = `<h1>Results for “${esc(q)}”</h1>
+    <section class="source-results"><h2>YouTube</h2><div id="yt-results" class="search-track-list"><div class="empty">Searching YouTube…</div></div></section>
+    <section class="source-results"><h2>Jamendo · Free downloads</h2><div id="jm-results" class="jm-search-grid"><div class="empty">Searching Jamendo…</div></div></section>`;
+
+  const [ytResult, jmResult] = await Promise.allSettled([ytSearch(q, 20), jamendoSearch(q, 20)]);
+  if (my !== renderId) return;
+
+  if (ytResult.status === "fulfilled") {
+    lists.results = ytResult.value;
+    $("#yt-results").innerHTML = ytResult.value.length
+      ? ytResult.value.map((t, i) => row(t, "results", i)).join("")
+      : `<div class="empty">No YouTube results found.</div>`;
+  } else {
+    $("#yt-results").innerHTML = errNotice(ytResult.reason);
+  }
+
+  if (jmResult.status === "fulfilled") {
+    lists.jamendoResults = jmResult.value;
+    $("#jm-results").innerHTML = jmResult.value.length
+      ? jmResult.value.map((t, i) => jamendoResultCard(t, i)).join("")
+      : `<div class="empty">No Jamendo tracks found. Try another search.</div>`;
+  } else {
+    $("#jm-results").innerHTML = `<div class="notice">Jamendo search is unavailable: ${esc(jmResult.reason?.message || "Please try again")}</div>`;
+  }
 }
 
+function jamendoResultCard(t, i) {
+  return `<article class="jm-result-card">
+    <img src="${esc(t.thumb)}" alt="" loading="lazy">
+    <div class="jm-result-info"><div class="jm-result-title">${esc(t.title)}</div>
+      <div class="jm-result-artist">${esc(t.artist)} · Jamendo</div>
+      <div class="jm-result-actions">
+        <button type="button" class="jm-play-btn" data-jm-play="${i}">▶ Play</button>
+        ${t.download ? `<a class="jm-download-btn" href="${esc(t.download)}" target="_blank" rel="noopener noreferrer">↓ Download</a>` : `<span class="jm-no-download">Streaming only</span>`}
+        ${t.license ? `<a class="jm-license-link" href="${esc(t.license)}" target="_blank" rel="noopener noreferrer">License</a>` : ""}
+      </div>
+    </div>
+  </article>`;
+}
 function renderLibrary() {
   ++renderId;
   const items = [tile("Liked Songs", "", 'data-go="liked"', "liked-art"), ...playlists.map(p => tile(p.name, p.tracks[0]?.thumb, `data-go="pl:${p.id}"`))];
@@ -284,6 +325,8 @@ view.addEventListener("click", e => {
   if (e.target.closest("#mkPl")) { newPlaylist(); return; }
   const g = e.target.closest("[data-go]"); if (g) return openGo(g.dataset.go);
   const q = e.target.closest("[data-q]"); if (q) { $("#searchInput").value = q.dataset.q; return go("search", q.dataset.q); }
+  const jmPlay = e.target.closest("[data-jm-play]");
+  if (jmPlay) { const t = lists.jamendoResults?.[Number(jmPlay.dataset.jmPlay)]; if (t) play(lists.jamendoResults, Number(jmPlay.dataset.jmPlay)); return; }
   if (!el) return;
   const t = lists[el.dataset.list]?.[+el.dataset.i]; if (!t) return;
   if (e.target.closest("[data-like]")) return toggleLike(t);
@@ -307,6 +350,7 @@ $("#searchInput").addEventListener("focus", () => { if (cur.v !== "search") go("
 
 /* ---------- player ---------- */
 let yt = null, ytReady = false, pending = null, timer = null, seeking = false;
+const jmAudio = new Audio(); jmAudio.preload = "none";
 let wantPlaying = false;       // true while the user wants music playing
 
 window.onYouTubeIframeAPIReady = () => {
@@ -317,13 +361,13 @@ window.onYouTubeIframeAPIReady = () => {
       onReady: () => { ytReady = true; yt.setVolume(+$("#vol").value); if (pending) { yt.loadVideoById(pending); pending = null; } },
       onStateChange: e => {
         const S = YT.PlayerState;
-        setPlayIcon(e.data === S.PLAYING || e.data === S.BUFFERING);
-        if (e.data === S.ENDED) next();
+        if (!current || current.source !== "jamendo") setPlayIcon(e.data === S.PLAYING || e.data === S.BUFFERING);
+        if (e.data === S.ENDED && current?.source !== "jamendo") next();
         // If the phone paused us when the app went to the background, try to resume
         if (e.data === S.PAUSED && wantPlaying && document.hidden) setTimeout(resumeIfDropped, 250);
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = e.data === S.PLAYING ? "playing" : "paused";
       },
-      onError: () => { toast("Can't play this one, skipping…"); next(); }
+      onError: () => { if (current?.source !== "jamendo") { toast("Can't play this one, skipping…"); next(); } }
     }
   });
   timer = setInterval(tick, 500);
@@ -336,24 +380,51 @@ function play(list, i) { queue = list.slice(); idx = i; load(); }
 function load() {
   current = queue[idx]; if (!current) return;
   wantPlaying = true; startKeepAlive();
-  $("#pArt").src = current.thumb; $("#pTitle").textContent = current.title; $("#pArtist").textContent = current.artist;
+  $("#pArt").src = current.thumb || ""; $("#pTitle").textContent = current.title; $("#pArtist").textContent = current.artist + (current.source === "jamendo" ? " · Jamendo" : " · YouTube");
   document.title = current.title + " · Sona Play";
-  if (ytReady) yt.loadVideoById(current.id); else pending = current.id;
+
+  if (current.source === "jamendo") {
+    pending = null;
+    if (ytReady) { try { yt.stopVideo(); } catch {} }
+    jmAudio.src = current.audio;
+    jmAudio.volume = Number($("#vol").value) / 100;
+    jmAudio.play().then(() => setPlayIcon(true)).catch(() => { setPlayIcon(false); toast("Jamendo playback could not start. Tap Play again."); });
+  } else {
+    jmAudio.pause(); jmAudio.removeAttribute("src"); jmAudio.load();
+    if (ytReady) yt.loadVideoById(current.id); else pending = current.id;
+  }
+
   recent = [slim(current), ...recent.filter(t => t.id !== current.id)].slice(0, 12); store.set("recent", recent);
   syncHearts(); $$(".row").forEach(r => { const t = lists[r.dataset.list]?.[r.dataset.i]; r.classList.toggle("playing", !!t && t.id === current.id); });
   setPlayIcon(true); setMediaSession();
 }
 function next() { if (!queue.length) return; idx = (idx + 1) % queue.length; load(); }
-function prev() { if (!queue.length) return; if (ytReady && yt.getCurrentTime() > 3) return yt.seekTo(0); idx = (idx - 1 + queue.length) % queue.length; load(); }
-function resume() { if (!ytReady || !current) return; wantPlaying = true; startKeepAlive(); yt.playVideo(); }
-function pauseIt() { if (!ytReady || !current) return; wantPlaying = false; stopKeepAlive(); yt.pauseVideo(); }
+function prev() {
+  if (!queue.length) return;
+  const time = current?.source === "jamendo" ? jmAudio.currentTime : (ytReady ? yt.getCurrentTime() : 0);
+  if (time > 3) { if (current?.source === "jamendo") jmAudio.currentTime = 0; else yt.seekTo(0); return; }
+  idx = (idx - 1 + queue.length) % queue.length; load();
+}
+function resume() {
+  if (!current) return;
+  wantPlaying = true; startKeepAlive();
+  if (current.source === "jamendo") jmAudio.play().catch(() => toast("Tap Play to resume this track."));
+  else if (ytReady) yt.playVideo();
+}
+function pauseIt() {
+  if (!current) return;
+  wantPlaying = false; stopKeepAlive();
+  if (current.source === "jamendo") jmAudio.pause(); else if (ytReady) yt.pauseVideo();
+}
 function toggle() {
-  if (!ytReady || !current) return;
-  yt.getPlayerState() === YT.PlayerState.PLAYING ? pauseIt() : resume();
+  if (!current) return;
+  const playing = current.source === "jamendo" ? !jmAudio.paused : (ytReady && yt.getPlayerState() === YT.PlayerState.PLAYING);
+  playing ? pauseIt() : resume();
 }
 function tick() {
-  if (!ytReady || !current || seeking) return;
-  const d = yt.getDuration?.() || 0, c = yt.getCurrentTime?.() || 0;
+  if (!current || seeking) return;
+  const d = current.source === "jamendo" ? (jmAudio.duration || 0) : (ytReady ? yt.getDuration?.() || 0 : 0);
+  const c = current.source === "jamendo" ? (jmAudio.currentTime || 0) : (ytReady ? yt.getCurrentTime?.() || 0 : 0);
   $("#tCur").textContent = fmt(c); $("#tDur").textContent = fmt(d);
   $("#seek").value = d ? c / d * 1000 : 0; fill($("#seek"));
 }
@@ -361,8 +432,20 @@ $("#playBtn").onclick = toggle; $("#nextBtn").onclick = next; $("#prevBtn").oncl
 $("#pHeart").onclick = () => current && toggleLike(current);
 const seekEl = $("#seek");
 seekEl.addEventListener("input", () => { seeking = true; fill(seekEl); if (ytReady) $("#tCur").textContent = fmt(seekEl.value / 1000 * yt.getDuration()); });
-seekEl.addEventListener("change", () => { if (ytReady) yt.seekTo(seekEl.value / 1000 * yt.getDuration(), true); seeking = false; });
-$("#vol").addEventListener("input", e => { fill(e.target); if (ytReady) yt.setVolume(+e.target.value); store.set("vol", +e.target.value); });
+seekEl.addEventListener("change", () => {
+  const fraction = Number(seekEl.value) / 1000;
+  if (current?.source === "jamendo" && Number.isFinite(jmAudio.duration)) jmAudio.currentTime = fraction * jmAudio.duration;
+  else if (ytReady && current) yt.seekTo(fraction * yt.getDuration(), true);
+  seeking = false;
+});
+$("#vol").addEventListener("input", e => {
+  fill(e.target); const v = Number(e.target.value);
+  if (ytReady) yt.setVolume(v); jmAudio.volume = v / 100; store.set("vol", v);
+});
+jmAudio.addEventListener("play", () => { if (current?.source === "jamendo") setPlayIcon(true); });
+jmAudio.addEventListener("pause", () => { if (current?.source === "jamendo") setPlayIcon(false); });
+jmAudio.addEventListener("ended", () => { if (current?.source === "jamendo") next(); });
+jmAudio.addEventListener("error", () => { if (current?.source === "jamendo") toast("This Jamendo stream is unavailable."); });
 document.addEventListener("keydown", e => {
   if (e.code === "Space" && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); toggle(); }
 });
@@ -393,7 +476,12 @@ function startKeepAlive() {
 function stopKeepAlive() { try { keepAlive?.pause(); } catch { } }
 
 function resumeIfDropped() {
-  if (!wantPlaying || !ytReady || !current) return;
+  if (!wantPlaying || !current) return;
+  if (current.source === "jamendo") {
+    if (jmAudio.paused) { startKeepAlive(); jmAudio.play().catch(() => {}); }
+    return;
+  }
+  if (!ytReady) return;
   const S = YT.PlayerState, s = yt.getPlayerState();
   if (s === S.PAUSED || s === S.CUED || s === S.UNSTARTED) { startKeepAlive(); yt.playVideo(); }
 }
@@ -402,13 +490,20 @@ addEventListener("pagehide", () => { if (wantPlaying) setTimeout(resumeIfDropped
 
 function setMediaSession() {
   if (!("mediaSession" in navigator) || !current) return;
-  navigator.mediaSession.metadata = new MediaMetadata({ title: current.title, artist: current.artist, album: "Sona Play", artwork: [{ src: current.thumb, sizes: "480x360", type: "image/jpeg" }] });
+  navigator.mediaSession.metadata = new MediaMetadata({ title: current.title, artist: current.artist, album: current.source === "jamendo" ? "Jamendo · Sona Play" : "Sona Play", artwork: current.thumb ? [{ src: current.thumb, sizes: "480x360", type: "image/jpeg" }] : [] });
   const set = (a, fn) => { try { navigator.mediaSession.setActionHandler(a, fn); } catch { } };
   set("play", resume);
   set("pause", pauseIt);
   set("previoustrack", prev);
   set("nexttrack", next);
 }
+
+window.SonaPlayer = {
+  playJamendo(track, tracks = [track], index = 0) {
+    if (!track?.audio) return toast("This Jamendo track has no playable stream.");
+    play(tracks, index);
+  }
+};
 
 /* ---------- footer marquee ---------- */
 const MARQUEE_TEXT = "Developed by Allan Kiplangat";
@@ -420,7 +515,7 @@ function buildMarquee() {
 /* ---------- init ---------- */
 (function init() {
   paintIcons(); paintProfile(); buildMarquee();
-  const v = store.get("vol", 80); $("#vol").value = v; fill($("#vol")); fill($("#seek"));
+  const v = store.get("vol", 80); $("#vol").value = v; jmAudio.volume = v / 100; if (ytReady) yt.setVolume(v); fill($("#vol")); fill($("#seek"));
   setPlayIcon(false);
   go("home");
 })();
