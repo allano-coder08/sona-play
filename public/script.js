@@ -1,521 +1,1079 @@
-/* ============================================================
-   Sona Play — Spotify-style UI
-   Search goes through /api/search (Vercel serverless function),
-   which holds the YouTube API key as the YT_API_KEY environment
-   variable and caches results. No key lives in this file.
-   Favourites, playlists and profile are saved in localStorage.
-   ============================================================ */
 
-/* ---------- helpers ---------- */
-const $ = (s, el = document) => el.querySelector(s);
-const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const decode = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
-const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
-const store = {
-  get(k, d) { try { const v = localStorage.getItem("sona:" + k); return v ? JSON.parse(v) : d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem("sona:" + k, JSON.stringify(v)); } catch { } }
+/* =====================================================
+   SONA PLAY
+   COMPLETE MUSIC SEARCH AND PLAYER
+   YouTube Data API v3 + Jamendo API
+===================================================== */
+
+/* =====================================================
+   1. API CONFIGURATION
+===================================================== */
+
+const YOUTUBE_API_KEY = "AIzaSyAmA8taIf1zkXycMFwbGAXFjzbfiolrnkY";
+const JAMENDO_CLIENT_ID = "0891ffca";
+
+const YOUTUBE_API =
+    "https://www.googleapis.com/youtube/v3/search";
+
+const JAMENDO_API =
+    "https://api.jamendo.com/v3.0/tracks/";
+
+/* =====================================================
+   2. ELEMENT SELECTORS
+===================================================== */
+
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => document.querySelectorAll(selector);
+
+const searchInput = $("#searchInput");
+const searchBtn = $("#searchBtn");
+const heroSearch = $("#heroSearch");
+const view = $("#view");
+
+const playBtn = $("#playBtn");
+const prevBtn = $("#prevBtn");
+const nextBtn = $("#nextBtn");
+
+const pTitle = $("#pTitle");
+const pArtist = $("#pArtist");
+const pArt = $("#pArt");
+
+const seek = $("#seek");
+const tCur = $("#tCur");
+const tDur = $("#tDur");
+const vol = $("#vol");
+
+const ytContainer = $("#yt-player");
+
+/* =====================================================
+   3. APPLICATION STATE
+===================================================== */
+
+let currentTrack = null;
+let currentQueue = [];
+let currentIndex = -1;
+
+let youtubePlayer = null;
+let youtubeReady = false;
+
+let jamendoAudio = new Audio();
+jamendoAudio.preload = "none";
+
+let isPlaying = false;
+let currentSource = null;
+
+let likedTracks = JSON.parse(
+    localStorage.getItem("sona_liked") || "[]"
+);
+
+let recentlyPlayed = JSON.parse(
+    localStorage.getItem("sona_recent") || "[]"
+);
+
+let youtubeResults = [];
+let jamendoResults = [];
+
+/* =====================================================
+   4. HELPER FUNCTIONS
+===================================================== */
+
+function escapeHTML(value = "") {
+    return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+    })[char]);
+}
+
+function formatTime(seconds) {
+    if (!Number.isFinite(seconds)) return "0:00";
+
+    const minutes = Math.floor(seconds / 60);
+    const remaining = Math.floor(seconds % 60);
+
+    return `${minutes}:${String(remaining).padStart(2, "0")}`;
+}
+
+function saveData() {
+    localStorage.setItem(
+        "sona_liked",
+        JSON.stringify(likedTracks)
+    );
+
+    localStorage.setItem(
+        "sona_recent",
+        JSON.stringify(recentlyPlayed)
+    );
+}
+
+function showToast(message) {
+    let toast = $("#toast");
+
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "toast";
+        toast.className = "toast";
+        document.body.appendChild(toast);
+    }
+
+    toast.textContent = message;
+    toast.classList.add("show");
+
+    setTimeout(() => {
+        toast.classList.remove("show");
+    }, 2500);
+}
+
+/* =====================================================
+   5. YOUTUBE IFRAME PLAYER
+===================================================== */
+
+function loadYouTubeAPI() {
+    if (window.YT && window.YT.Player) {
+        createYouTubePlayer();
+        return;
+    }
+
+    if (document.querySelector(
+        'script[src="https://www.youtube.com/iframe_api"]'
+    )) return;
+
+    const script = document.createElement("script");
+
+    script.src = "https://www.youtube.com/iframe_api";
+
+    document.head.appendChild(script);
+}
+
+window.onYouTubeIframeAPIReady = function () {
+    createYouTubePlayer();
 };
 
-/* ---------- icons ---------- */
-const ICONS = {
-  note: '<path d="M9 3v12.3A3.5 3.5 0 1 0 11 18.5V8h6V3z"/>',
-  home: '<path d="M12 3 3 10.5V21h6.5v-6h5v6H21V10.5z"/>',
-  search: '<circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m16.5 16.5 4.5 4.5" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/>',
-  library: '<path d="M4 4h3v16H4zM9.5 4h3v16h-3zM15 5.5l2.9-.8 3.7 14.6-2.9.8z"/>',
-  plus: '<path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"/>',
-  heart: '<path d="M12 20.5s-8-4.9-8-10.7A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8 2.8c0 5.8-8 10.7-8 10.7z"/>',
-  play: '<path d="M7 4.5v15l13-7.5z"/>',
-  pause: '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
-  prev: '<path d="M6 5h2v14H6zM20 5v14L9 12z"/>',
-  next: '<path d="M16 5h2v14h-2zM4 5v14l11-7z"/>',
-  volume: '<path d="M3 9v6h4l5 4V5L7 9z"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
-  more: '<circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>',
-  code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
-};
-const svg = n => `<svg class="ic" viewBox="0 0 24 24" fill="currentColor">${ICONS[n]}</svg>`;
-function paintIcons(root = document) { $$("[data-icon]", root).forEach(el => { el.innerHTML = svg(el.dataset.icon); }); }
+function createYouTubePlayer() {
+    if (youtubePlayer || !window.YT || !YT.Player) return;
 
-/* ---------- state ---------- */
-let liked = store.get("liked", []);
-let playlists = store.get("playlists", []);
-let recent = store.get("recent", []);
-let profile = store.get("profile", { name: "Guest" });
-let queue = [], idx = -1, current = null;
-let cur = { v: "home", arg: null };
-let renderId = 0;
-const lists = {};              // key -> array of tracks, used by cards/rows
+    let container = ytContainer;
 
-const save = () => { store.set("liked", liked); store.set("playlists", playlists); store.set("recent", recent); store.set("profile", profile); };
-const isLiked = id => liked.some(t => t.id === id);
-const slim = t => ({
-  id: t.id, title: t.title, artist: t.artist, thumb: t.thumb,
-  source: t.source || "youtube", audio: t.audio || "", download: t.download || "",
-  license: t.license || "", jamendoId: t.jamendoId || ""
-});
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "yt-player";
+        document.body.appendChild(container);
+    }
 
-function toast(msg) {
-  const el = $("#toast"); el.textContent = msg; el.classList.add("show");
-  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 1800);
+    container.innerHTML = `
+        <div id="youtube-player-frame"></div>
+    `;
+
+    youtubePlayer = new YT.Player(
+        "youtube-player-frame",
+        {
+            height: "1",
+            width: "1",
+
+            playerVars: {
+                autoplay: 0,
+                controls: 0,
+                playsinline: 1,
+                rel: 0
+            },
+
+            events: {
+                onReady: function () {
+                    youtubeReady = true;
+
+                    if (vol) {
+                        youtubePlayer.setVolume(
+                            Number(vol.value || 70)
+                        );
+                    }
+                },
+
+                onStateChange: function (event) {
+                    if (
+                        event.data === YT.PlayerState.ENDED
+                    ) {
+                        playNext();
+                    }
+
+                    if (
+                        event.data === YT.PlayerState.PLAYING
+                    ) {
+                        isPlaying = true;
+                        updatePlayButton();
+                    }
+
+                    if (
+                        event.data === YT.PlayerState.PAUSED
+                    ) {
+                        isPlaying = false;
+                        updatePlayButton();
+                    }
+                }
+            }
+        }
+    );
 }
 
-/* ---------- YouTube search (via /api/search, cached) ---------- */
-const CACHE_TTL = 24 * 3600e3;   // reuse results for 24 hours
+/* =====================================================
+   6. YOUTUBE SEARCH
+===================================================== */
 
-async function ytSearch(q, max = 12) {
-  q = q.trim().toLowerCase();
-  const ck = "cache:" + max + ":" + q;
-  const c = store.get(ck, null);
-  if (c && Date.now() - c.t < CACHE_TTL) return c.v;
+async function searchYouTube(query) {
+    if (!YOUTUBE_API_KEY ||
+        YOUTUBE_API_KEY.includes("AIzaSyAmA8taIf1zkXycMFwbGAXFjzbfiolrnkY")) {
+        throw new Error(
+            "Add your YouTube API key at the top of script.js."
+        );
+    }
 
-  let r, j;
-  try {
-    r = await fetch(`/api/search?max=${max}&q=${encodeURIComponent(q)}`);
-    j = await r.json();
-  } catch {
-    if (c) return c.v;                       // offline: fall back to old results
-    throw new Error("Network error. Check your connection.");
-  }
-  if (!r.ok) {
-    if (c) return c.v;                       // quota hit: show old results instead of an error
-    const msg = j?.error?.message || "Search failed";
-    throw new Error(/quota/i.test(msg) ? "QUOTA" : msg);
-  }
+    const params = new URLSearchParams({
+        part: "snippet",
+        type: "video",
+        videoCategoryId: "10",
+        maxResults: "12",
+        q: query,
+        key:AIzaSyAmA8taIf1zkXycMFwbGAXFjzbfiolrnkY
+    });
 
-  const v = (j.items || []).map(it => ({
-    id: it.id.videoId,
-    title: decode(it.snippet.title),
-    artist: decode(it.snippet.channelTitle).replace(/ - Topic$/, ""),
-    thumb: it.snippet.thumbnails.high?.url || it.snippet.thumbnails.medium?.url || ""
-  }));
-  store.set(ck, { t: Date.now(), v });
-  return v;
+    const response = await fetch(
+        `${AIzaSyAmA8taIf1zkXycMFwbGAXFjzbfiolrnkY}?${params.toString()}`
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            data.error?.message || "YouTube search failed."
+        );
+    }
+
+    return (data.items || []).map(item => ({
+        id: item.id.videoId,
+        title: item.snippet.title,
+        artist: item.snippet.channelTitle,
+        image:
+            item.snippet.thumbnails.high?.url ||
+            item.snippet.thumbnails.medium?.url,
+        source: "youtube",
+        duration: 0
+    }));
 }
 
-async function jamendoSearch(q, limit = 20) {
-  if (!window.SonaJamendo?.search) throw new Error("Jamendo is still loading. Try again in a moment.");
-  return window.SonaJamendo.search(q, limit);
+/* =====================================================
+   7. JAMENDO SEARCH
+===================================================== */
+
+async function searchJamendo(query = "") {
+    const params = new URLSearchParams({
+        client_id: JAMENDO_CLIENT_ID,
+        format: "json",
+        limit: "12",
+        imagesize: "300",
+        audioformat: "mp32",
+        audiodownload_allowed: "true",
+        order: query ? "relevance" : "popularity_week"
+    });
+
+    if (query.trim()) {
+        params.set("search", query);
+    }
+
+    const response = await fetch(
+        `${JAMENDO_API}?${params.toString()}`
+    );
+
+    if (!response.ok) {
+        throw new Error("Jamendo search failed.");
+    }
+
+    const data = await response.json();
+
+    if (data.headers?.status === "failed") {
+        throw new Error(
+            data.headers.error_message || "Jamendo API error."
+        );
+    }
+
+    return (data.results || []).map(item => ({
+        id: String(item.id),
+        title: item.name,
+        artist: item.artist_name,
+        image: item.album_image || item.image,
+        audio: item.audio,
+        download: item.audiodownload,
+        license: item.license_ccurl,
+        source: "jamendo"
+    }));
 }
 
-const errNotice = e => e.message === "QUOTA"
-  ? `<div class="notice"><b>Search is busy right now.</b> Please try again later (it resets daily around 11:00 AM EAT). Your library and favourites still work.</div>`
-  : `<div class="notice"><b>Couldn't load music.</b> ${esc(e.message)}</div>`;
+/* =====================================================
+   8. TRACK CARD DESIGN
+===================================================== */
 
-/* ---------- html builders ---------- */
-const card = (t, key, i) => `
-  <div class="card" data-list="${key}" data-i="${i}">
-    <div class="art"><img src="${esc(t.thumb)}" alt="" loading="lazy">
-      <button class="more" aria-label="More">${svg("more")}</button>
-      <button class="play-fab" aria-label="Play">${svg("play")}</button></div>
-    <div class="ct">${esc(t.title)}</div><div class="cs">${esc(t.artist)}</div>
-  </div>`;
-const skeleton = n => Array.from({ length: n }, () => `<div class="card sk"><div class="art"></div><div class="ct">.</div><div class="cs">.</div></div>`).join("");
-const row = (t, key, i) => `
-  <div class="row${current?.id === t.id ? " playing" : ""}" data-list="${key}" data-i="${i}">
-    <div class="idx">${i + 1}</div>
-    <div class="info"><img src="${esc(t.thumb)}" alt="" loading="lazy"><div style="min-width:0"><div class="rt">${esc(t.title)}</div><div class="ra">${esc(t.artist)}</div></div></div>
-    <button class="icon-btn heart${isLiked(t.id) ? " on" : ""}" data-like aria-label="Like">${svg("heart")}</button>
-    <button class="icon-btn more" style="position:static;background:none;opacity:1" aria-label="More">${svg("more")}</button>
-  </div>`;
-const tile = (name, art, attrs, cls = "") => `
-  <div class="tile" ${attrs}><div class="tile-art ${cls}">${art ? `<img src="${esc(art)}" alt="">` : ""}</div>
-  <div class="tile-name">${esc(name)}</div><button class="play-fab" aria-label="Play">${svg("play")}</button></div>`;
+function musicCard(track, index) {
+    const liked = likedTracks.some(
+        item => item.id === track.id &&
+                item.source === track.source
+    );
 
-function greeting() { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; }
+    return `
+        <article class="card music-card"
+            data-track-index="${index}">
 
-/* ---------- views ---------- */
-const view = $("#view"), main = $("#main");
+            <div class="art">
+                <img
+                    src="${escapeHTML(track.image || "")}"
+                    alt="${escapeHTML(track.title)}"
+                    loading="lazy"
+                >
 
-const SHELVES = [
-  ["Trending now", "top hits official music"],
-  ["Chill vibes", "chill lofi relaxing music"],
-  ["Hip hop & rap", "hip hop rap hits"],
-  ["Pop favourites", "pop hits music"]
-];
+                <button
+                    class="play-fab"
+                    data-play-index="${index}"
+                    aria-label="Play ${escapeHTML(track.title)}">
+                    ▶
+                </button>
+            </div>
 
-async function renderHome() {
-  const my = ++renderId;
-  lists.recent = recent;
-  const tiles = [tile("Liked Songs", "", 'data-go="liked"', "liked-art")];
-  playlists.slice(0, 4).forEach(p => tiles.push(tile(p.name, p.tracks[0]?.thumb, `data-go="pl:${p.id}"`)));
-  recent.slice(0, 8 - tiles.length).forEach((t, i) => tiles.push(tile(t.title, t.thumb, `data-list="recent" data-i="${i}"`)));
+            <div class="card-info">
+                <h3>${escapeHTML(track.title)}</h3>
+                <p>${escapeHTML(track.artist)}</p>
 
-  view.innerHTML = `<h1>${greeting()}</h1>
-    <div class="tiles">${tiles.join("")}</div>
-    <div id="notice"></div>
-    ${SHELVES.map((s, k) => `<section class="shelf"><h2>${esc(s[0])}</h2><div class="cards" id="sh${k}">${skeleton(7)}</div></section>`).join("")}`;
+                <button
+                    class="like-track"
+                    data-like-index="${index}">
+                    ${liked ? "♥" : "♡"}
+                </button>
+            </div>
+        </article>
+    `;
+}
 
-  SHELVES.forEach(async ([, q], k) => {
+/* =====================================================
+   9. RENDER SEARCH RESULTS
+===================================================== */
+
+function renderSearchResults(ytTracks, jmTracks, query) {
+    if (!view) return;
+
+    const allTracks = [...ytTracks, ...jmTracks];
+
+    currentQueue = allTracks;
+    youtubeResults = ytTracks;
+    jamendoResults = jmTracks;
+
+    view.innerHTML = `
+        <section class="shelf">
+
+            <h2>Search results</h2>
+
+            <p class="muted">
+                Results for "${escapeHTML(query)}"
+            </p>
+
+            <h3>YouTube Music</h3>
+
+            <div class="cards">
+                ${
+                    ytTracks.length
+                    ? ytTracks.map((track, i) =>
+                        musicCard(track, i)
+                    ).join("")
+                    : "<p>No YouTube results found.</p>"
+                }
+            </div>
+
+            <h3>Free Music from Jamendo</h3>
+
+            <div class="cards">
+                ${
+                    jmTracks.length
+                    ? jmTracks.map((track, i) =>
+                        musicCard(track, ytTracks.length + i)
+                    ).join("")
+                    : "<p>No Jamendo results found.</p>"
+                }
+            </div>
+
+        </section>
+    `;
+}
+
+/* =====================================================
+   10. SEARCH BOTH MUSIC SOURCES
+===================================================== */
+
+async function searchMusic(query) {
+    query = query.trim();
+
+    if (!query) {
+        showToast("Enter a song or artist name.");
+        return;
+    }
+
+    if (view) {
+        view.innerHTML = `
+            <h2>Searching for "${escapeHTML(query)}"...</h2>
+        `;
+    }
+
     try {
-      const res = await ytSearch(q, 10);
-      if (my !== renderId) return;
-      lists["sh" + k] = res;
-      $("#sh" + k).innerHTML = res.map((t, i) => card(t, "sh" + k, i)).join("");
-    } catch (e) {
-      if (my !== renderId) return;
-      $("#sh" + k)?.closest(".shelf")?.remove();
-      $("#notice").innerHTML = errNotice(e);
+        const [ytResult, jmResult] = await Promise.allSettled([
+            searchYouTube(query),
+            searchJamendo(query)
+        ]);
+
+        const ytTracks =
+            ytResult.status === "fulfilled"
+                ? ytResult.value
+                : [];
+
+        const jmTracks =
+            jmResult.status === "fulfilled"
+                ? jmResult.value
+                : [];
+
+        if (
+            ytResult.status === "rejected" &&
+            jmResult.status === "rejected"
+        ) {
+            throw new Error(
+                "Both music services failed. Check your API settings."
+            );
+        }
+
+        renderSearchResults(
+            ytTracks,
+            jmTracks,
+            query
+        );
+
+        if (!ytTracks.length && !jmTracks.length) {
+            showToast("No songs found.");
+        }
+
+    } catch (error) {
+        console.error("Search error:", error);
+
+        if (view) {
+            view.innerHTML = `
+                <h2>Search unavailable</h2>
+                <p>${escapeHTML(error.message)}</p>
+            `;
+        }
     }
-  });
 }
 
-const GENRES = [["Pop", "#8d67ab"], ["Hip Hop", "#ba5d07"], ["Rock", "#e13300"], ["Chill", "#477d95"], ["R&B", "#503750"],
-["Dance", "#148a08"], ["Gospel", "#dc148c"], ["Jazz", "#8c1932"], ["Reggae", "#1e3264"], ["Workout", "#777777"], ["Focus", "#0d73ec"], ["Party", "#af2896"]];
+/* =====================================================
+   11. PLAY YOUTUBE MUSIC
+===================================================== */
 
-async function renderSearch(q) {
-  const my = ++renderId;
-  if (!q) {
-    view.innerHTML = `<h1>Browse all</h1><div class="genres">${GENRES.map(g => `<button class="genre" data-q="${esc(g[0])} music" style="background:${g[1]}">${esc(g[0])}</button>`).join("")}</div><p class="empty">Search once to find music from YouTube and Jamendo.</p>`;
-    return;
-  }
+function playYouTube(track) {
+    currentSource = "youtube";
+    currentTrack = track;
 
-  view.innerHTML = `<h1>Results for “${esc(q)}”</h1>
-    <section class="source-results"><h2>YouTube</h2><div id="yt-results" class="search-track-list"><div class="empty">Searching YouTube…</div></div></section>
-    <section class="source-results"><h2>Jamendo · Free downloads</h2><div id="jm-results" class="jm-search-grid"><div class="empty">Searching Jamendo…</div></div></section>`;
+    jamendoAudio.pause();
 
-  const [ytResult, jmResult] = await Promise.allSettled([ytSearch(q, 20), jamendoSearch(q, 20)]);
-  if (my !== renderId) return;
+    updatePlayer(track);
+    rememberTrack(track);
 
-  if (ytResult.status === "fulfilled") {
-    lists.results = ytResult.value;
-    $("#yt-results").innerHTML = ytResult.value.length
-      ? ytResult.value.map((t, i) => row(t, "results", i)).join("")
-      : `<div class="empty">No YouTube results found.</div>`;
-  } else {
-    $("#yt-results").innerHTML = errNotice(ytResult.reason);
-  }
+    if (!youtubeReady || !youtubePlayer) {
+        loadYouTubeAPI();
 
-  if (jmResult.status === "fulfilled") {
-    lists.jamendoResults = jmResult.value;
-    $("#jm-results").innerHTML = jmResult.value.length
-      ? jmResult.value.map((t, i) => jamendoResultCard(t, i)).join("")
-      : `<div class="empty">No Jamendo tracks found. Try another search.</div>`;
-  } else {
-    $("#jm-results").innerHTML = `<div class="notice">Jamendo search is unavailable: ${esc(jmResult.reason?.message || "Please try again")}</div>`;
-  }
-}
+        showToast(
+            "YouTube player is loading. Press play again shortly."
+        );
 
-function jamendoResultCard(t, i) {
-  return `<article class="jm-result-card">
-    <img src="${esc(t.thumb)}" alt="" loading="lazy">
-    <div class="jm-result-info"><div class="jm-result-title">${esc(t.title)}</div>
-      <div class="jm-result-artist">${esc(t.artist)} · Jamendo</div>
-      <div class="jm-result-actions">
-        <button type="button" class="jm-play-btn" data-jm-play="${i}">▶ Play</button>
-        ${t.download ? `<a class="jm-download-btn" href="${esc(t.download)}" target="_blank" rel="noopener noreferrer">↓ Download</a>` : `<span class="jm-no-download">Streaming only</span>`}
-        ${t.license ? `<a class="jm-license-link" href="${esc(t.license)}" target="_blank" rel="noopener noreferrer">License</a>` : ""}
-      </div>
-    </div>
-  </article>`;
-}
-function renderLibrary() {
-  ++renderId;
-  const items = [tile("Liked Songs", "", 'data-go="liked"', "liked-art"), ...playlists.map(p => tile(p.name, p.tracks[0]?.thumb, `data-go="pl:${p.id}"`))];
-  view.innerHTML = `<h1>Your Library</h1><div class="tiles">${items.join("")}</div>
-    <button class="genre" id="mkPl" style="background:var(--panel-2);height:auto;padding:12px 18px;font-size:15px">+ Create playlist</button>`;
-}
-
-function trackList(title, kind, tracks, key, art, cls) {
-  lists[key] = tracks;
-  view.innerHTML = `
-    <div class="hero"><div class="hero-art ${cls || ""}">${art ? `<img src="${esc(art)}" alt="">` : svg("heart")}</div>
-      <div><div class="kind">${kind}</div><h1>${esc(title)}</h1><div class="count">${esc(profile.name)} · ${tracks.length} song${tracks.length === 1 ? "" : "s"}</div></div></div>
-    <div class="actions"><button class="big-play" id="playAll" aria-label="Play all">${svg("play")}</button></div>
-    ${tracks.length ? tracks.map((t, i) => row(t, key, i)).join("") : `<div class="empty">Nothing here yet. Tap the ♥ or “⋯” on any song to add it.</div>`}`;
-}
-function renderLiked() { ++renderId; trackList("Liked Songs", "Playlist", liked, "liked", "", "liked-art"); }
-function renderPlaylist(id) {
-  ++renderId;
-  const p = playlists.find(x => x.id === id);
-  if (!p) return go("home");
-  trackList(p.name, "Playlist", p.tracks, "pl", p.tracks[0]?.thumb);
-}
-
-function go(v, arg) {
-  cur = { v, arg };
-  const nav = ["liked", "playlist"].includes(v) ? "library" : v;
-  $$("[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === nav));
-  main.scrollTop = 0;
-  ({ home: renderHome, search: renderSearch, library: renderLibrary, liked: renderLiked, playlist: renderPlaylist })[v](arg);
-  renderSidebar();
-}
-const refresh = () => { const y = main.scrollTop; go(cur.v, cur.arg); main.scrollTop = y; };
-
-/* ---------- sidebar library ---------- */
-function renderSidebar() {
-  const act = (cur.v === "liked") ? "liked" : (cur.v === "playlist" ? cur.arg : "");
-  $("#libraryList").innerHTML =
-    `<li class="lib-item${act === "liked" ? " active" : ""}" data-go="liked"><div class="lib-art liked-art">${svg("heart")}</div><div><div class="lib-name">Liked Songs</div><div class="lib-sub">Playlist · ${liked.length} songs</div></div></li>` +
-    playlists.map(p => `<li class="lib-item${act === p.id ? " active" : ""}" data-go="pl:${p.id}"><div class="lib-art">${p.tracks[0] ? `<img src="${esc(p.tracks[0].thumb)}" alt="">` : svg("note")}</div><div style="min-width:0"><div class="lib-name">${esc(p.name)}</div><div class="lib-sub">Playlist · ${p.tracks.length} songs</div></div><button class="lib-del" data-del="${p.id}" title="Delete playlist">✕</button></li>`).join("");
-}
-
-/* ---------- favourites & playlists ---------- */
-function toggleLike(t) {
-  if (isLiked(t.id)) { liked = liked.filter(x => x.id !== t.id); toast("Removed from Liked Songs"); }
-  else { liked.unshift(slim(t)); toast("Added to Liked Songs"); }
-  save(); syncHearts(); renderSidebar();
-  if (cur.v === "liked") refresh();
-}
-function syncHearts() {
-  $("#pHeart").classList.toggle("on", !!current && isLiked(current.id));
-  $$(".row").forEach(r => { const t = lists[r.dataset.list]?.[r.dataset.i]; if (t) $(".heart", r)?.classList.toggle("on", isLiked(t.id)); });
-}
-function newPlaylist(firstTrack) {
-  const name = prompt("Playlist name", "My playlist #" + (playlists.length + 1));
-  if (!name || !name.trim()) return null;
-  const p = { id: "p" + Date.now(), name: name.trim().slice(0, 40), tracks: firstTrack ? [slim(firstTrack)] : [] };
-  playlists.push(p); save(); renderSidebar();
-  if (firstTrack) toast("Added to " + p.name);
-  if (cur.v === "library" || cur.v === "home") refresh();
-  return p;
-}
-function addToPlaylist(p, t) {
-  if (p.tracks.some(x => x.id === t.id)) return toast("Already in " + p.name);
-  p.tracks.push(slim(t)); save(); renderSidebar(); toast("Added to " + p.name);
-}
-
-/* ---------- context menu ---------- */
-const menu = $("#menu");
-function openMenu(x, y, items) {
-  menu.innerHTML = "";
-  items.forEach(it => {
-    if (it === "-") return menu.appendChild(document.createElement("hr"));
-    if (it.label && !it.fn) { const d = document.createElement("div"); d.className = "ctx-label"; d.textContent = it.label; return menu.appendChild(d); }
-    const b = document.createElement("button"); b.textContent = it.label;
-    b.onclick = () => { closeMenu(); it.fn(); }; menu.appendChild(b);
-  });
-  menu.classList.remove("hidden");
-  const w = menu.offsetWidth, h = menu.offsetHeight;
-  menu.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + "px";
-  menu.style.top = Math.max(8, Math.min(y, innerHeight - h - 8)) + "px";
-}
-const closeMenu = () => menu.classList.add("hidden");
-document.addEventListener("click", e => { if (!e.target.closest("#menu, .more, #profileBtn")) closeMenu(); });
-addEventListener("scroll", closeMenu, true);
-
-function trackMenu(e, t) {
-  const r = e.target.getBoundingClientRect();
-  const items = [{ label: isLiked(t.id) ? "Remove from Liked Songs" : "Add to Liked Songs", fn: () => toggleLike(t) }, "-", { label: "Add to playlist" }];
-  playlists.forEach(p => items.push({ label: p.name, fn: () => addToPlaylist(p, t) }));
-  items.push({ label: "+ New playlist", fn: () => newPlaylist(t) });
-  if (cur.v === "playlist") {
-    items.push("-", { label: "Remove from this playlist", fn: () => { const p = playlists.find(x => x.id === cur.arg); p.tracks = p.tracks.filter(x => x.id !== t.id); save(); refresh(); } });
-  }
-  openMenu(r.left - 180, r.bottom + 4, items);
-}
-
-/* ---------- profile (small avatar menu) ---------- */
-function paintProfile() { $("#profileBtn").textContent = (profile.name || "G").trim().charAt(0).toUpperCase() || "G"; }
-$("#profileBtn").addEventListener("click", e => {
-  const r = e.currentTarget.getBoundingClientRect();
-  openMenu(r.right - 220, r.bottom + 8, [
-    { label: profile.name },
-    "-",
-    { label: "Edit name", fn: () => { const n = prompt("Your name", profile.name); if (n && n.trim()) { profile.name = n.trim().slice(0, 24); save(); paintProfile(); refresh(); } } },
-    { label: "Liked Songs", fn: () => go("liked") },
-    { label: "Your Library", fn: () => go("library") }
-  ]);
-});
-
-/* ---------- click handling in the content area ---------- */
-function openGo(g) { g === "liked" ? go("liked") : go("playlist", g.slice(3)); }
-view.addEventListener("click", e => {
-  const el = e.target.closest("[data-list]");
-  if (e.target.closest("#playAll")) { const l = lists[cur.v === "liked" ? "liked" : "pl"]; if (l?.length) play(l, 0); return; }
-  if (e.target.closest("#mkPl")) { newPlaylist(); return; }
-  const g = e.target.closest("[data-go]"); if (g) return openGo(g.dataset.go);
-  const q = e.target.closest("[data-q]"); if (q) { $("#searchInput").value = q.dataset.q; return go("search", q.dataset.q); }
-  const jmPlay = e.target.closest("[data-jm-play]");
-  if (jmPlay) { const t = lists.jamendoResults?.[Number(jmPlay.dataset.jmPlay)]; if (t) play(lists.jamendoResults, Number(jmPlay.dataset.jmPlay)); return; }
-  if (!el) return;
-  const t = lists[el.dataset.list]?.[+el.dataset.i]; if (!t) return;
-  if (e.target.closest("[data-like]")) return toggleLike(t);
-  if (e.target.closest(".more")) { e.stopPropagation(); return trackMenu(e, t); }
-  play(lists[el.dataset.list], +el.dataset.i);
-});
-$("#libraryList").addEventListener("click", e => {
-  const d = e.target.closest("[data-del]");
-  if (d) { e.stopPropagation(); const p = playlists.find(x => x.id === d.dataset.del); if (p && confirm(`Delete “${p.name}”?`)) { playlists = playlists.filter(x => x !== p); save(); if (cur.v === "playlist" && cur.arg === p.id) go("home"); else { renderSidebar(); } } return; }
-  const g = e.target.closest("[data-go]"); if (g) openGo(g.dataset.go);
-});
-$$("[data-view]").forEach(b => b.addEventListener("click", () => {
-  if (b.dataset.view === "search") { go("search", $("#searchInput").value.trim()); $("#searchInput").focus(); }
-  else go(b.dataset.view);
-}));
-$("#newPlaylist").addEventListener("click", () => newPlaylist());
-
-/* search box — searches only when you press Enter (saves API quota) */
-$("#searchInput").addEventListener("keydown", e => { if (e.key === "Enter") go("search", e.target.value.trim()); });
-$("#searchInput").addEventListener("focus", () => { if (cur.v !== "search") go("search", $("#searchInput").value.trim()); });
-
-/* ---------- player ---------- */
-let yt = null, ytReady = false, pending = null, timer = null, seeking = false;
-const jmAudio = new Audio(); jmAudio.preload = "none";
-let wantPlaying = false;       // true while the user wants music playing
-
-window.onYouTubeIframeAPIReady = () => {
-  yt = new YT.Player("yt-player", {
-    height: "113", width: "200",
-    playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0 },
-    events: {
-      onReady: () => { ytReady = true; yt.setVolume(+$("#vol").value); if (pending) { yt.loadVideoById(pending); pending = null; } },
-      onStateChange: e => {
-        const S = YT.PlayerState;
-        if (!current || current.source !== "jamendo") setPlayIcon(e.data === S.PLAYING || e.data === S.BUFFERING);
-        if (e.data === S.ENDED && current?.source !== "jamendo") next();
-        // If the phone paused us when the app went to the background, try to resume
-        if (e.data === S.PAUSED && wantPlaying && document.hidden) setTimeout(resumeIfDropped, 250);
-        if ("mediaSession" in navigator) navigator.mediaSession.playbackState = e.data === S.PLAYING ? "playing" : "paused";
-      },
-      onError: () => { if (current?.source !== "jamendo") { toast("Can't play this one, skipping…"); next(); } }
+        return;
     }
-  });
-  timer = setInterval(tick, 500);
-};
 
-function setPlayIcon(playing) { $("#playBtn").innerHTML = svg(playing ? "pause" : "play"); $("#playBtn").setAttribute("aria-label", playing ? "Pause" : "Play"); }
-function fill(input) { input.style.setProperty("--fill", (input.value / input.max * 100) + "%"); }
+    youtubePlayer.loadVideoById(track.id);
+    youtubePlayer.playVideo();
 
-function play(list, i) { queue = list.slice(); idx = i; load(); }
-function load() {
-  current = queue[idx]; if (!current) return;
-  wantPlaying = true; startKeepAlive();
-  $("#pArt").src = current.thumb || ""; $("#pTitle").textContent = current.title; $("#pArtist").textContent = current.artist + (current.source === "jamendo" ? " · Jamendo" : " · YouTube");
-  document.title = current.title + " · Sona Play";
+    isPlaying = true;
+    updatePlayButton();
+}
 
-  if (current.source === "jamendo") {
-    pending = null;
-    if (ytReady) { try { yt.stopVideo(); } catch {} }
-    jmAudio.src = current.audio;
-    jmAudio.volume = Number($("#vol").value) / 100;
-    jmAudio.play().then(() => setPlayIcon(true)).catch(() => { setPlayIcon(false); toast("Jamendo playback could not start. Tap Play again."); });
-  } else {
-    jmAudio.pause(); jmAudio.removeAttribute("src"); jmAudio.load();
-    if (ytReady) yt.loadVideoById(current.id); else pending = current.id;
-  }
+/* =====================================================
+   12. PLAY JAMENDO MUSIC
+===================================================== */
 
-  recent = [slim(current), ...recent.filter(t => t.id !== current.id)].slice(0, 12); store.set("recent", recent);
-  syncHearts(); $$(".row").forEach(r => { const t = lists[r.dataset.list]?.[r.dataset.i]; r.classList.toggle("playing", !!t && t.id === current.id); });
-  setPlayIcon(true); setMediaSession();
+function playJamendo(track) {
+    if (!track.audio) {
+        showToast("Audio is unavailable for this track.");
+        return;
+    }
+
+    currentSource = "jamendo";
+    currentTrack = track;
+
+    if (youtubePlayer && youtubeReady) {
+        youtubePlayer.stopVideo();
+    }
+
+    jamendoAudio.pause();
+    jamendoAudio.src = track.audio;
+    jamendoAudio.volume = vol
+        ? Number(vol.value) / 100
+        : 0.7;
+
+    jamendoAudio.play()
+        .then(() => {
+            isPlaying = true;
+            updatePlayButton();
+        })
+        .catch(error => {
+            console.error(error);
+            showToast("Unable to play this track.");
+        });
+
+    updatePlayer(track);
+    rememberTrack(track);
 }
-function next() { if (!queue.length) return; idx = (idx + 1) % queue.length; load(); }
-function prev() {
-  if (!queue.length) return;
-  const time = current?.source === "jamendo" ? jmAudio.currentTime : (ytReady ? yt.getCurrentTime() : 0);
-  if (time > 3) { if (current?.source === "jamendo") jmAudio.currentTime = 0; else yt.seekTo(0); return; }
-  idx = (idx - 1 + queue.length) % queue.length; load();
+
+/* =====================================================
+   13. UNIVERSAL PLAY FUNCTION
+===================================================== */
+
+function playTrack(index) {
+    const track = currentQueue[index];
+
+    if (!track) return;
+
+    currentIndex = index;
+
+    if (track.source === "youtube") {
+        playYouTube(track);
+    } else {
+        playJamendo(track);
+    }
 }
-function resume() {
-  if (!current) return;
-  wantPlaying = true; startKeepAlive();
-  if (current.source === "jamendo") jmAudio.play().catch(() => toast("Tap Play to resume this track."));
-  else if (ytReady) yt.playVideo();
+
+/* =====================================================
+   14. PLAYER INFORMATION
+===================================================== */
+
+function updatePlayer(track) {
+    if (pTitle) {
+        pTitle.textContent = track.title;
+    }
+
+    if (pArtist) {
+        pArtist.textContent = track.artist;
+    }
+
+    if (pArt) {
+        pArt.src = track.image || "";
+    }
+
+    if (seek) seek.value = 0;
+    if (tCur) tCur.textContent = "0:00";
+    if (tDur) tDur.textContent = "0:00";
 }
-function pauseIt() {
-  if (!current) return;
-  wantPlaying = false; stopKeepAlive();
-  if (current.source === "jamendo") jmAudio.pause(); else if (ytReady) yt.pauseVideo();
+
+function updatePlayButton() {
+    if (!playBtn) return;
+
+    playBtn.textContent = isPlaying ? "Ⅱ" : "▶";
 }
-function toggle() {
-  if (!current) return;
-  const playing = current.source === "jamendo" ? !jmAudio.paused : (ytReady && yt.getPlayerState() === YT.PlayerState.PLAYING);
-  playing ? pauseIt() : resume();
+
+/* =====================================================
+   15. PLAY / PAUSE
+===================================================== */
+
+function togglePlayback() {
+    if (!currentTrack) {
+        if (currentQueue.length) {
+            playTrack(0);
+        } else {
+            showToast("Search for a song first.");
+        }
+
+        return;
+    }
+
+    if (currentSource === "youtube") {
+        if (!youtubePlayer || !youtubeReady) return;
+
+        if (isPlaying) {
+            youtubePlayer.pauseVideo();
+        } else {
+            youtubePlayer.playVideo();
+        }
+
+    } else {
+        if (isPlaying) {
+            jamendoAudio.pause();
+        } else {
+            jamendoAudio.play().catch(console.error);
+        }
+    }
+
+    isPlaying = !isPlaying;
+    updatePlayButton();
 }
-function tick() {
-  if (!current || seeking) return;
-  const d = current.source === "jamendo" ? (jmAudio.duration || 0) : (ytReady ? yt.getDuration?.() || 0 : 0);
-  const c = current.source === "jamendo" ? (jmAudio.currentTime || 0) : (ytReady ? yt.getCurrentTime?.() || 0 : 0);
-  $("#tCur").textContent = fmt(c); $("#tDur").textContent = fmt(d);
-  $("#seek").value = d ? c / d * 1000 : 0; fill($("#seek"));
+
+/* =====================================================
+   16. NEXT AND PREVIOUS
+===================================================== */
+
+function playNext() {
+    if (!currentQueue.length) return;
+
+    const next = (currentIndex + 1) % currentQueue.length;
+
+    playTrack(next);
 }
-$("#playBtn").onclick = toggle; $("#nextBtn").onclick = next; $("#prevBtn").onclick = prev;
-$("#pHeart").onclick = () => current && toggleLike(current);
-const seekEl = $("#seek");
-seekEl.addEventListener("input", () => { seeking = true; fill(seekEl); if (ytReady) $("#tCur").textContent = fmt(seekEl.value / 1000 * yt.getDuration()); });
-seekEl.addEventListener("change", () => {
-  const fraction = Number(seekEl.value) / 1000;
-  if (current?.source === "jamendo" && Number.isFinite(jmAudio.duration)) jmAudio.currentTime = fraction * jmAudio.duration;
-  else if (ytReady && current) yt.seekTo(fraction * yt.getDuration(), true);
-  seeking = false;
+
+function playPrevious() {
+    if (!currentQueue.length) return;
+
+    const previous =
+        (currentIndex - 1 + currentQueue.length) %
+        currentQueue.length;
+
+    playTrack(previous);
+}
+
+/* =====================================================
+   17. RECENTLY PLAYED
+===================================================== */
+
+function rememberTrack(track) {
+    recentlyPlayed = [
+        track,
+        ...recentlyPlayed.filter(
+            item => !(
+                item.id === track.id &&
+                item.source === track.source
+            )
+        )
+    ].slice(0, 20);
+
+    saveData();
+}
+
+/* =====================================================
+   18. LIKES
+===================================================== */
+
+function toggleLike(track) {
+    const exists = likedTracks.some(
+        item =>
+            item.id === track.id &&
+            item.source === track.source
+    );
+
+    if (exists) {
+        likedTracks = likedTracks.filter(
+            item =>
+                !(
+                    item.id === track.id &&
+                    item.source === track.source
+                )
+        );
+
+        showToast("Removed from liked songs.");
+
+    } else {
+        likedTracks.push(track);
+        showToast("Added to liked songs.");
+    }
+
+    saveData();
+    refreshLikeButtons();
+}
+
+function refreshLikeButtons() {
+    $$("[data-like-index]").forEach(button => {
+        const index = Number(button.dataset.likeIndex);
+        const track = currentQueue[index];
+
+        if (!track) return;
+
+        const liked = likedTracks.some(
+            item =>
+                item.id === track.id &&
+                item.source === track.source
+        );
+
+        button.textContent = liked ? "♥" : "♡";
+    });
+}
+
+/* =====================================================
+   19. HOME PAGE
+===================================================== */
+
+async function showHome() {
+    if (!view) return;
+
+    view.innerHTML = `
+        <section class="shelf">
+            <h2>Good music. Good moments.</h2>
+            <p>Discover your next favourite sound.</p>
+
+            <div class="tiles">
+                <button class="tile" data-category="Afrobeats">
+                    Afrobeats
+                </button>
+
+                <button class="tile" data-category="Chill Hits">
+                    Chill Hits
+                </button>
+
+                <button class="tile" data-category="Party Vibes">
+                    Party Vibes
+                </button>
+
+                <button class="tile" data-category="Love Songs">
+                    Love Songs
+                </button>
+            </div>
+
+            <h2>Handpicked for you</h2>
+            <div id="home-music" class="cards">
+                <p>Loading music...</p>
+            </div>
+
+            <h2>Recently played</h2>
+            <div id="recent-music" class="cards"></div>
+        </section>
+    `;
+
+    try {
+        const tracks = await searchJamendo("");
+
+        currentQueue = tracks;
+
+        const home = $("#home-music");
+
+        if (home) {
+            home.innerHTML = tracks.map((track, index) =>
+                musicCard(track, index)
+            ).join("");
+        }
+
+        renderRecent();
+
+    } catch (error) {
+        console.error(error);
+
+        const home = $("#home-music");
+
+        if (home) {
+            home.innerHTML =
+                "<p>Unable to load music. Check your connection.</p>";
+        }
+
+        renderRecent();
+    }
+}
+
+/* =====================================================
+   20. RECENT MUSIC DISPLAY
+===================================================== */
+
+function renderRecent() {
+    const recent = $("#recent-music");
+
+    if (!recent) return;
+
+    recent.innerHTML = recentlyPlayed.length
+        ? recentlyPlayed.map((track, index) =>
+            musicCard(track, index)
+        ).join("")
+        : "<p>Your recently played songs will appear here.</p>";
+}
+
+/* =====================================================
+   21. LIKED SONGS PAGE
+===================================================== */
+
+function showLikedSongs() {
+    if (!view) return;
+
+    currentQueue = likedTracks;
+
+    view.innerHTML = `
+        <section class="shelf">
+            <h2>Liked Songs ♥</h2>
+
+            <div class="cards">
+                ${
+                    likedTracks.length
+                    ? likedTracks.map((track, index) =>
+                        musicCard(track, index)
+                    ).join("")
+                    : "<p>You haven't liked any songs yet.</p>"
+                }
+            </div>
+        </section>
+    `;
+}
+
+/* =====================================================
+   22. FREE MUSIC PAGE
+===================================================== */
+
+async function showFreeMusic() {
+    if (!view) return;
+
+    view.innerHTML = `
+        <section class="shelf">
+            <h2>Free Music</h2>
+            <p>Discover music from Jamendo.</p>
+            <div id="free-music-grid" class="cards">
+                <p>Loading free music...</p>
+            </div>
+        </section>
+    `;
+
+    try {
+        const tracks = await searchJamendo("");
+
+        currentQueue = tracks;
+
+        const grid = $("#free-music-grid");
+
+        if (grid) {
+            grid.innerHTML = tracks.map((track, index) =>
+                musicCard(track, index)
+            ).join("");
+        }
+
+    } catch (error) {
+        console.error(error);
+
+        const grid = $("#free-music-grid");
+
+        if (grid) {
+            grid.innerHTML =
+                "<p>Unable to load free music.</p>";
+        }
+    }
+}
+
+/* =====================================================
+   23. PLAYER PROGRESS
+===================================================== */
+
+jamendoAudio.addEventListener("timeupdate", () => {
+    if (currentSource !== "jamendo") return;
+
+    const current = jamendoAudio.currentTime;
+    const duration = jamendoAudio.duration || 0;
+
+    if (tCur) tCur.textContent = formatTime(current);
+    if (tDur) tDur.textContent = formatTime(duration);
+
+    if (seek && duration) {
+        seek.value = (current / duration) * 100;
+    }
 });
-$("#vol").addEventListener("input", e => {
-  fill(e.target); const v = Number(e.target.value);
-  if (ytReady) yt.setVolume(v); jmAudio.volume = v / 100; store.set("vol", v);
-});
-jmAudio.addEventListener("play", () => { if (current?.source === "jamendo") setPlayIcon(true); });
-jmAudio.addEventListener("pause", () => { if (current?.source === "jamendo") setPlayIcon(false); });
-jmAudio.addEventListener("ended", () => { if (current?.source === "jamendo") next(); });
-jmAudio.addEventListener("error", () => { if (current?.source === "jamendo") toast("This Jamendo stream is unavailable."); });
-document.addEventListener("keydown", e => {
-  if (e.code === "Space" && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); toggle(); }
+
+jamendoAudio.addEventListener("ended", playNext);
+
+jamendoAudio.addEventListener("play", () => {
+    isPlaying = true;
+    updatePlayButton();
 });
 
-/* ---------- background play (best effort) ----------
-   Phones often pause web pages when you switch apps (e.g. to WhatsApp).
-   1) A silent looping <audio> keeps the page registered as "playing audio".
-   2) If the player gets paused while the page is hidden, we resume it.
-   3) Media Session shows lock-screen / notification controls.
-   Note: YouTube's embedded player may still be paused by some phones/browsers. */
-function makeSilentWav(sec = 1, rate = 8000) {
-  const n = sec * rate, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
-  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
-  w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVE"); w(12, "fmt ");
-  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
-  w(36, "data"); v.setUint32(40, n, true);
-  new Uint8Array(buf, 44).fill(128);          // 8-bit PCM: 128 = silence
-  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
-}
-let keepAlive = null;
-function startKeepAlive() {
-  try {
-    if (!keepAlive) { keepAlive = new Audio(makeSilentWav()); keepAlive.loop = true; keepAlive.volume = 0.01; }
-    keepAlive.play().catch(() => { });
-  } catch { }
-}
-function stopKeepAlive() { try { keepAlive?.pause(); } catch { } }
+jamendoAudio.addEventListener("pause", () => {
+    isPlaying = false;
+    updatePlayButton();
+});
 
-function resumeIfDropped() {
-  if (!wantPlaying || !current) return;
-  if (current.source === "jamendo") {
-    if (jmAudio.paused) { startKeepAlive(); jmAudio.play().catch(() => {}); }
-    return;
-  }
-  if (!ytReady) return;
-  const S = YT.PlayerState, s = yt.getPlayerState();
-  if (s === S.PAUSED || s === S.CUED || s === S.UNSTARTED) { startKeepAlive(); yt.playVideo(); }
-}
-document.addEventListener("visibilitychange", () => { if (wantPlaying) setTimeout(resumeIfDropped, 300); });
-addEventListener("pagehide", () => { if (wantPlaying) setTimeout(resumeIfDropped, 300); });
+if (seek) {
+    seek.addEventListener("input", () => {
+        if (
+            currentSource === "jamendo" &&
+            jamendoAudio.duration
+        ) {
+            jamendoAudio.currentTime =
+                (Number(seek.value) / 100) *
+                jamendoAudio.duration;
+        }
 
-function setMediaSession() {
-  if (!("mediaSession" in navigator) || !current) return;
-  navigator.mediaSession.metadata = new MediaMetadata({ title: current.title, artist: current.artist, album: current.source === "jamendo" ? "Jamendo · Sona Play" : "Sona Play", artwork: current.thumb ? [{ src: current.thumb, sizes: "480x360", type: "image/jpeg" }] : [] });
-  const set = (a, fn) => { try { navigator.mediaSession.setActionHandler(a, fn); } catch { } };
-  set("play", resume);
-  set("pause", pauseIt);
-  set("previoustrack", prev);
-  set("nexttrack", next);
+        if (
+            currentSource === "youtube" &&
+            youtubeReady &&
+            youtubePlayer
+        ) {
+            const duration = youtubePlayer.getDuration();
+
+            if (duration) {
+                youtubePlayer.seekTo(
+                    (Number(seek.value) / 100) * duration,
+                    true
+                );
+            }
+        }
+    });
 }
 
-window.SonaPlayer = {
-  playJamendo(track, tracks = [track], index = 0) {
-    if (!track?.audio) return toast("This Jamendo track has no playable stream.");
-    play(tracks, index);
-  }
-};
+/* =====================================================
+   24. YOUTUBE PLAYER PROGRESS
+===================================================== */
 
-/* ---------- footer marquee ---------- */
-const MARQUEE_TEXT = "Developed by Allan Kiplangat";
-function buildMarquee() {
-  const g = Array.from({ length: 12 }, () => `<span>${esc(MARQUEE_TEXT)}</span>`).join("");
-  $(".marquee-track").innerHTML = `<div class="marquee-group">${g}</div><div class="marquee-group" aria-hidden="true">${g}</div>`;
+setInterval(() => {
+    if (
+        currentSource !== "youtube" ||
+        !youtubeReady ||
+        !youtubePlayer
+    ) return;
+
+    const current = youtubePlayer.getCurrentTime();
+    const duration = youtubePlayer.getDuration();
+
+    if (tCur) tCur.textContent = formatTime(current);
+    if (tDur) tDur.textContent = formatTime(duration);
+
+    if (seek && duration) {
+        seek.value = (current / duration) * 100;
+    }
+}, 1000);
+
+/* =====================================================
+   25. VOLUME
+===================================================== */
+
+if (vol) {
+    vol.addEventListener("input", () => {
+        const value = Number(vol.value);
+
+        jamendoAudio.volume = value / 100;
+
+        if (youtubeReady && youtubePlayer) {
+            youtubePlayer.setVolume(value);
+        }
+    });
 }
 
-/* ---------- init ---------- */
-(function init() {
-  paintIcons(); paintProfile(); buildMarquee();
-  const v = store.get("vol", 80); $("#vol").value = v; jmAudio.volume = v / 100; if (ytReady) yt.setVolume(v); fill($("#vol")); fill($("#seek"));
-  setPlayIcon(false);
-  go("home");
-})();
+/* =====================================================
+   26. SEARCH EVENTS
+===================================================== */
+
+if (searchBtn) {
+    searchBtn.addEventListener("click", () => {
+        searchMusic(searchInput?.value || "");
+    });
+}
+
+if (searchInput) {
+    searchInput.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+            searchMusic(searchInput.value);
+        }
+    });
+}
+
+if (heroSearch) {
+    heroSearch.addEventListener("click", () => {
+        searchMusic(searchInput?.value || "");
+    });
+}
+
+/* =====================================================
+   27. MUSIC CARD EVENTS
+===================================================== */
+
+document.addEventListener("click", event => {
+    const playButton = event.target.closest(
+        "[data-play-index]"
+    );
+
+    if (playButton) {
+        const index = Number(playButton.dataset.playIndex);
+        playTrack(index);
+        return;
+    }
+
+    const likeButton = event.target.closest(
+        "[data-like-index]"
+    );
+
+    if (likeButton) {
+        const index = Number(likeButton.dataset.likeIndex);
+        const track = currentQueue[index];
+
+        if (track) toggleLike(track);
+        return;
+    }
+
+    const categoryButton = event.target.closest(
+        "[data-category]"
+    );
+
+    if (categoryButton) {
+        const category = categoryButton.dataset.category;
+        searchMusic(category);
+    }
+});
+
+/* =====================================================
+   28. PLAYER BUTTON EVENTS
+===================================================== */
+
+if (playBtn) {
+    playBtn.addEventListener("click", togglePlayback);
+}
+
+if (nextBtn) {
+    nextBtn.addEventListener("click", playNext);
+}
+
+if (prevBtn) {
+    prevBtn.addEventListener("click", playPrevious);
+}
+
+/* =====================================================
+   29. SIDEBAR NAVIGATION
+===================================================== */
+
+document.addEventListener("click", event => {
+    const link = event.target.closest(
+        "[data-page], .nav a, .bottomnav a"
+    );
+
+    if (!link) return;
+
+    const page = (
+        link.dataset.page ||
+        link.textContent.trim()
+    ).toLowerCase();
+
+    if (page.includes("home")) {
+        showHome();
+    }
+
+    if (page.includes("search")) {
+        searchInput?.focus();
+    }
+
+    if (
+        page.includes("free") ||
+        page.includes("jamendo")
+    ) {
+        showFreeMusic();
+    }
+
+    if (
+        page.includes("liked") ||
+        page.includes("favorite")
+    ) {
+        showLikedSongs();
+    }
+});
+
+/* =====================================================
+   30. INITIALIZE APPLICATION
+===================================================== */
+
+loadYouTubeAPI();
+
+showHome();
+
+console.log("Sona Play initialized successfully.");
