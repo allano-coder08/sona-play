@@ -345,4 +345,81 @@ input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border: 0; bord
   .bottomnav { display: flex; grid-row: 3; background: var(--panel); border-radius: var(--radius); padding: 6px 0; }
   .bottomnav .nav-item { flex-direction: column; gap: 4px; font-size: 11px; align-items: center; padding: 6px; }
   .toast { bottom: 170px; }
+  /* Sona Play: homepage additions (hero banner + Jamendo block).
+   Loaded after style.css, so it only adds to your existing design. */
+
+.hero {
+  margin: 8px 24px 24px;
+  padding: 36px 32px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1ed760 0%, #0e7a37 45%, #121212 100%);
+  color: #fff;
+}
+
+.hero-kicker {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.hero h1 {
+  margin: 0 0 12px;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.hero-text {
+  margin: 0 0 20px;
+  max-width: 520px;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hero-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  border: 0;
+  border-radius: 500px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.hero-btn:hover {
+  transform: scale(1.04);
+}
+
+.hero-btn.primary {
+  background: #fff;
+  color: #000;
+}
+
+.hero-btn.ghost {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.jamendo-block {
+  scroll-margin-top: 16px;
+  margin-top: 8px;
+}
+
+@media (max-width: 700px) {
+  .hero {
+    margin: 8px 14px 18px;
+    padding: 24px 18px;
+  }
 }

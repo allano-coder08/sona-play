@@ -1,10 +1,10 @@
 /* ============================================================
    Sona Play — Spotify-style UI
-   1) Put your YouTube Data API v3 key below.
-   2) Everything (favourites, playlists, profile) is saved in the
-      browser's localStorage, so no backend is needed.
+   Search goes through /api/search (Vercel serverless function),
+   which holds the YouTube API key as the YT_API_KEY environment
+   variable and caches results. No key lives in this file.
+   Favourites, playlists and profile are saved in localStorage.
    ============================================================ */
-const YT_API_KEY = "AIzaSyAmA8taIf1zkXycMFwbGAXFjzbfiolrnkY";
 
 /* ---------- helpers ---------- */
 const $ = (s, el = document) => el.querySelector(s);
@@ -55,17 +55,29 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 1800);
 }
 
-/* ---------- YouTube search ---------- */
+/* ---------- YouTube search (via /api/search, cached) ---------- */
+const CACHE_TTL = 24 * 3600e3;   // reuse results for 24 hours
+
 async function ytSearch(q, max = 12) {
-  if (YT_API_KEY.startsWith("YOUR_")) throw new Error("NO_KEY");
+  q = q.trim().toLowerCase();
   const ck = "cache:" + max + ":" + q;
   const c = store.get(ck, null);
-  if (c && Date.now() - c.t < 6 * 3600e3) return c.v;
-  const url = "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&videoCategoryId=10" +
-    `&maxResults=${max}&q=${encodeURIComponent(q)}&key=${YT_API_KEY}`;
-  const r = await fetch(url);
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.error?.message || "Search failed");
+  if (c && Date.now() - c.t < CACHE_TTL) return c.v;
+
+  let r, j;
+  try {
+    r = await fetch(`/api/search?max=${max}&q=${encodeURIComponent(q)}`);
+    j = await r.json();
+  } catch {
+    if (c) return c.v;                       // offline: fall back to old results
+    throw new Error("Network error. Check your connection.");
+  }
+  if (!r.ok) {
+    if (c) return c.v;                       // quota hit: show old results instead of an error
+    const msg = j?.error?.message || "Search failed";
+    throw new Error(/quota/i.test(msg) ? "QUOTA" : msg);
+  }
+
   const v = (j.items || []).map(it => ({
     id: it.id.videoId,
     title: decode(it.snippet.title),
@@ -75,8 +87,8 @@ async function ytSearch(q, max = 12) {
   store.set(ck, { t: Date.now(), v });
   return v;
 }
-const errNotice = e => e.message === "NO_KEY"
-  ? `<div class="notice"><b>Add your YouTube API key</b> to see songs. Open <code>script.js</code> and replace <code>YOUR_YOUTUBE_API_KEY</code> on the first line.</div>`
+const errNotice = e => e.message === "QUOTA"
+  ? `<div class="notice"><b>Search is busy right now.</b> Please try again later (it resets daily around 11:00 AM EAT). Your library and favourites still work.</div>`
   : `<div class="notice"><b>Couldn't load music.</b> ${esc(e.message)}</div>`;
 
 /* ---------- html builders ---------- */
@@ -131,7 +143,7 @@ async function renderHome() {
       $("#sh" + k).innerHTML = res.map((t, i) => card(t, "sh" + k, i)).join("");
     } catch (e) {
       if (my !== renderId) return;
-      $("#sh" + k).closest(".shelf").remove();
+      $("#sh" + k)?.closest(".shelf")?.remove();
       $("#notice").innerHTML = errNotice(e);
     }
   });
@@ -289,14 +301,13 @@ $$("[data-view]").forEach(b => b.addEventListener("click", () => {
 }));
 $("#newPlaylist").addEventListener("click", () => newPlaylist());
 
-/* search box */
-let st;
-$("#searchInput").addEventListener("input", e => { clearTimeout(st); st = setTimeout(() => go("search", e.target.value.trim()), 500); });
-$("#searchInput").addEventListener("keydown", e => { if (e.key === "Enter") { clearTimeout(st); go("search", e.target.value.trim()); } });
+/* search box — searches only when you press Enter (saves API quota) */
+$("#searchInput").addEventListener("keydown", e => { if (e.key === "Enter") go("search", e.target.value.trim()); });
 $("#searchInput").addEventListener("focus", () => { if (cur.v !== "search") go("search", $("#searchInput").value.trim()); });
 
 /* ---------- player ---------- */
 let yt = null, ytReady = false, pending = null, timer = null, seeking = false;
+let wantPlaying = false;       // true while the user wants music playing
 
 window.onYouTubeIframeAPIReady = () => {
   yt = new YT.Player("yt-player", {
@@ -308,6 +319,8 @@ window.onYouTubeIframeAPIReady = () => {
         const S = YT.PlayerState;
         setPlayIcon(e.data === S.PLAYING || e.data === S.BUFFERING);
         if (e.data === S.ENDED) next();
+        // If the phone paused us when the app went to the background, try to resume
+        if (e.data === S.PAUSED && wantPlaying && document.hidden) setTimeout(resumeIfDropped, 250);
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = e.data === S.PLAYING ? "playing" : "paused";
       },
       onError: () => { toast("Can't play this one, skipping…"); next(); }
@@ -322,6 +335,7 @@ function fill(input) { input.style.setProperty("--fill", (input.value / input.ma
 function play(list, i) { queue = list.slice(); idx = i; load(); }
 function load() {
   current = queue[idx]; if (!current) return;
+  wantPlaying = true; startKeepAlive();
   $("#pArt").src = current.thumb; $("#pTitle").textContent = current.title; $("#pArtist").textContent = current.artist;
   document.title = current.title + " · Sona Play";
   if (ytReady) yt.loadVideoById(current.id); else pending = current.id;
@@ -331,9 +345,11 @@ function load() {
 }
 function next() { if (!queue.length) return; idx = (idx + 1) % queue.length; load(); }
 function prev() { if (!queue.length) return; if (ytReady && yt.getCurrentTime() > 3) return yt.seekTo(0); idx = (idx - 1 + queue.length) % queue.length; load(); }
+function resume() { if (!ytReady || !current) return; wantPlaying = true; startKeepAlive(); yt.playVideo(); }
+function pauseIt() { if (!ytReady || !current) return; wantPlaying = false; stopKeepAlive(); yt.pauseVideo(); }
 function toggle() {
   if (!ytReady || !current) return;
-  const s = yt.getPlayerState(); (s === YT.PlayerState.PLAYING) ? yt.pauseVideo() : yt.playVideo();
+  yt.getPlayerState() === YT.PlayerState.PLAYING ? pauseIt() : resume();
 }
 function tick() {
   if (!ytReady || !current || seeking) return;
@@ -351,15 +367,49 @@ document.addEventListener("keydown", e => {
   if (e.code === "Space" && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); toggle(); }
 });
 
-/* Lock-screen / notification controls (helps when you leave the tab) */
+/* ---------- background play (best effort) ----------
+   Phones often pause web pages when you switch apps (e.g. to WhatsApp).
+   1) A silent looping <audio> keeps the page registered as "playing audio".
+   2) If the player gets paused while the page is hidden, we resume it.
+   3) Media Session shows lock-screen / notification controls.
+   Note: YouTube's embedded player may still be paused by some phones/browsers. */
+function makeSilentWav(sec = 1, rate = 8000) {
+  const n = sec * rate, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  w(36, "data"); v.setUint32(40, n, true);
+  new Uint8Array(buf, 44).fill(128);          // 8-bit PCM: 128 = silence
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+let keepAlive = null;
+function startKeepAlive() {
+  try {
+    if (!keepAlive) { keepAlive = new Audio(makeSilentWav()); keepAlive.loop = true; keepAlive.volume = 0.01; }
+    keepAlive.play().catch(() => { });
+  } catch { }
+}
+function stopKeepAlive() { try { keepAlive?.pause(); } catch { } }
+
+function resumeIfDropped() {
+  if (!wantPlaying || !ytReady || !current) return;
+  const S = YT.PlayerState, s = yt.getPlayerState();
+  if (s === S.PAUSED || s === S.CUED || s === S.UNSTARTED) { startKeepAlive(); yt.playVideo(); }
+}
+document.addEventListener("visibilitychange", () => { if (wantPlaying) setTimeout(resumeIfDropped, 300); });
+addEventListener("pagehide", () => { if (wantPlaying) setTimeout(resumeIfDropped, 300); });
+
 function setMediaSession() {
   if (!("mediaSession" in navigator) || !current) return;
-  navigator.mediaSession.metadata = new MediaMetadata({ title: current.title, artist: current.artist, artwork: [{ src: current.thumb, sizes: "480x360", type: "image/jpeg" }] });
-  navigator.mediaSession.setActionHandler("play", () => yt.playVideo());
-  navigator.mediaSession.setActionHandler("pause", () => yt.pauseVideo());
-  navigator.mediaSession.setActionHandler("previoustrack", prev);
-  navigator.mediaSession.setActionHandler("nexttrack", next);
+  navigator.mediaSession.metadata = new MediaMetadata({ title: current.title, artist: current.artist, album: "Sona Play", artwork: [{ src: current.thumb, sizes: "480x360", type: "image/jpeg" }] });
+  const set = (a, fn) => { try { navigator.mediaSession.setActionHandler(a, fn); } catch { } };
+  set("play", resume);
+  set("pause", pauseIt);
+  set("previoustrack", prev);
+  set("nexttrack", next);
 }
+
 /* ---------- footer marquee ---------- */
 const MARQUEE_TEXT = "Developed by Allan Kiplangat";
 function buildMarquee() {
@@ -369,8 +419,7 @@ function buildMarquee() {
 
 /* ---------- init ---------- */
 (function init() {
-  paintIcons(); paintProfile();
-    buildMarquee(); paintIcons(); paintProfile();
+  paintIcons(); paintProfile(); buildMarquee();
   const v = store.get("vol", 80); $("#vol").value = v; fill($("#vol")); fill($("#seek"));
   setPlayIcon(false);
   go("home");

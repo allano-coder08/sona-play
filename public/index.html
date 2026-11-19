@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sona Play</title>
+  <meta name="description" content="Sona Play: stream any song and download free music from independent artists.">
   <link rel="stylesheet" href="style.css">
-    <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="home.css">
+  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#121212">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -15,21 +17,13 @@
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
-    <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#121212">
-  <link rel="icon" href="icon-192.png">
-  <link rel="apple-touch-icon" href="icon-192.png">
-</head>
+
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("sw.js"));
     }
   </script>
-    <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => navigator.serviceWorker.register("sw.js"));
-    }
-  </script>
+</head>
 <body>
   <div class="app">
 
@@ -39,6 +33,7 @@
         <div class="logo"><span class="logo-mark" data-icon="note"></span> Sona Play</div>
         <button class="nav-item active" data-view="home"><span data-icon="home"></span>Home</button>
         <button class="nav-item" data-view="search"><span data-icon="search"></span>Search</button>
+        <a class="nav-item" href="#jamendo-section"><span data-icon="plus"></span>Free Music</a>
         <a class="nav-item" href="developer.html"><span data-icon="code"></span>Developer</a>
       </div>
       <div class="box library">
@@ -59,7 +54,23 @@
         </div>
         <button class="avatar" id="profileBtn" aria-label="Profile" title="Profile">G</button>
       </header>
+
+      <!-- Hero banner -->
+      <section class="hero" aria-labelledby="heroTitle">
+        <p class="hero-kicker">Welcome to Sona Play</p>
+        <h1 id="heroTitle">Play anything.<br>Download free music.</h1>
+        <p class="hero-text">Stream songs from YouTube, or grab independent tracks that are free to download.</p>
+        <div class="hero-actions">
+          <button class="hero-btn primary" id="heroSearch" type="button">Search songs</button>
+          <a class="hero-btn ghost" href="#jamendo-section">Free to download</a>
+        </div>
+      </section>
+
+      <!-- Your songs, playlists and search results (rendered by script.js) -->
       <section id="view" class="view"></section>
+
+      <!-- Jamendo: free-to-download independent music -->
+      <div id="jamendo-section" class="jamendo-block"></div>
     </main>
 
     <!-- Now playing bar -->
@@ -97,6 +108,7 @@
       <button class="nav-item active" data-view="home"><span data-icon="home"></span>Home</button>
       <button class="nav-item" data-view="search"><span data-icon="search"></span>Search</button>
       <button class="nav-item" data-view="library"><span data-icon="library"></span>Library</button>
+      <a class="nav-item" href="#jamendo-section"><span data-icon="plus"></span>Free</a>
     </nav>
   </div>
 
@@ -108,6 +120,15 @@
   <div id="toast" class="toast"></div>
 
   <script src="script.js"></script>
+  <script src="jamendo.js"></script>
+  <script>
+    // Hero "Search songs" button: jump to the search box
+    document.getElementById("heroSearch").addEventListener("click", function () {
+      var box = document.getElementById("searchInput");
+      box.scrollIntoView({ behavior: "smooth", block: "center" });
+      box.focus();
+    });
+  </script>
   <script src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>
